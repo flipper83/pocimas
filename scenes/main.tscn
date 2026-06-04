@@ -1,0 +1,142 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/dice.gd" id="1_dice"]
+[ext_resource type="Script" path="res://scripts/shadow.gd" id="2_shadow"]
+[ext_resource type="Texture2D" path="res://assets/face-1.png" id="3_f1"]
+[ext_resource type="Texture2D" path="res://assets/face-2.png" id="4_f2"]
+[ext_resource type="Texture2D" path="res://assets/face-3.png" id="5_f3"]
+[ext_resource type="Texture2D" path="res://assets/face-4.png" id="6_f4"]
+[ext_resource type="Texture2D" path="res://assets/face-5.png" id="7_f5"]
+[ext_resource type="Texture2D" path="res://assets/face-6.png" id="8_f6"]
+[ext_resource type="Texture2D" path="res://assets/sheet-transparent.png" id="9_sheet"]
+
+[sub_resource type="AtlasTexture" id="AT_0"]
+atlas = ExtResource("9_sheet")
+region = Rect2(0, 0, 256, 256)
+
+[sub_resource type="AtlasTexture" id="AT_1"]
+atlas = ExtResource("9_sheet")
+region = Rect2(256, 0, 256, 256)
+
+[sub_resource type="AtlasTexture" id="AT_2"]
+atlas = ExtResource("9_sheet")
+region = Rect2(512, 0, 256, 256)
+
+[sub_resource type="AtlasTexture" id="AT_3"]
+atlas = ExtResource("9_sheet")
+region = Rect2(768, 0, 256, 256)
+
+[sub_resource type="AtlasTexture" id="AT_4"]
+atlas = ExtResource("9_sheet")
+region = Rect2(0, 256, 256, 256)
+
+[sub_resource type="AtlasTexture" id="AT_5"]
+atlas = ExtResource("9_sheet")
+region = Rect2(256, 256, 256, 256)
+
+[sub_resource type="AtlasTexture" id="AT_6"]
+atlas = ExtResource("9_sheet")
+region = Rect2(512, 256, 256, 256)
+
+[sub_resource type="AtlasTexture" id="AT_7"]
+atlas = ExtResource("9_sheet")
+region = Rect2(768, 256, 256, 256)
+
+[sub_resource type="AtlasTexture" id="AT_8"]
+atlas = ExtResource("9_sheet")
+region = Rect2(0, 512, 256, 256)
+
+[sub_resource type="AtlasTexture" id="AT_9"]
+atlas = ExtResource("9_sheet")
+region = Rect2(256, 512, 256, 256)
+
+[sub_resource type="AtlasTexture" id="AT_10"]
+atlas = ExtResource("9_sheet")
+region = Rect2(512, 512, 256, 256)
+
+[sub_resource type="AtlasTexture" id="AT_11"]
+atlas = ExtResource("9_sheet")
+region = Rect2(768, 512, 256, 256)
+
+[sub_resource type="SpriteFrames" id="SF_main"]
+animations = [{
+"frames": [{"duration": 1.0, "texture": ExtResource("3_f1")}],
+"loop": false,
+"name": &"face_1",
+"speed": 5.0
+}, {
+"frames": [{"duration": 1.0, "texture": ExtResource("4_f2")}],
+"loop": false,
+"name": &"face_2",
+"speed": 5.0
+}, {
+"frames": [{"duration": 1.0, "texture": ExtResource("5_f3")}],
+"loop": false,
+"name": &"face_3",
+"speed": 5.0
+}, {
+"frames": [{"duration": 1.0, "texture": ExtResource("6_f4")}],
+"loop": false,
+"name": &"face_4",
+"speed": 5.0
+}, {
+"frames": [{"duration": 1.0, "texture": ExtResource("7_f5")}],
+"loop": false,
+"name": &"face_5",
+"speed": 5.0
+}, {
+"frames": [{"duration": 1.0, "texture": ExtResource("8_f6")}],
+"loop": false,
+"name": &"face_6",
+"speed": 5.0
+}, {
+"frames": [
+{"duration": 1.0, "texture": SubResource("AT_0")},
+{"duration": 1.0, "texture": SubResource("AT_1")},
+{"duration": 1.0, "texture": SubResource("AT_2")},
+{"duration": 1.0, "texture": SubResource("AT_3")},
+{"duration": 1.0, "texture": SubResource("AT_4")},
+{"duration": 1.0, "texture": SubResource("AT_5")},
+{"duration": 1.0, "texture": SubResource("AT_6")},
+{"duration": 1.0, "texture": SubResource("AT_7")},
+{"duration": 1.0, "texture": SubResource("AT_8")},
+{"duration": 1.0, "texture": SubResource("AT_9")},
+{"duration": 1.0, "texture": SubResource("AT_10")},
+{"duration": 1.0, "texture": SubResource("AT_11")}
+],
+"loop": false,
+"name": &"roll",
+"speed": 12.0
+}]
+
+[sub_resource type="RectangleShape2D" id="RS_dice"]
+size = Vector2(256, 256)
+
+[node name="Main" type="Node2D"]
+
+[node name="Shadow" type="Node2D" parent="."]
+position = Vector2(576, 390)
+script = ExtResource("2_shadow")
+
+[node name="Dice" type="Node2D" parent="."]
+position = Vector2(576, 260)
+script = ExtResource("1_dice")
+
+[node name="AnimatedSprite2D" type="AnimatedSprite2D" parent="Dice"]
+sprite_frames = SubResource("SF_main")
+animation = &"face_1"
+
+[node name="DiceArea" type="Area2D" parent="Dice"]
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Dice/DiceArea"]
+position = Vector2(0, 0)
+shape = SubResource("RS_dice")
+
+[node name="DadoLabel" type="Label" parent="."]
+offset_left = 376.0
+offset_top = 570.0
+offset_right = 776.0
+offset_bottom = 610.0
+text = "Dado: 1"
+horizontal_alignment = 1
+theme_override_font_sizes/font_size = 32
