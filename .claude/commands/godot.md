@@ -26,6 +26,21 @@ Cuando trabajas en este proyecto Godot 4, sigue estas prácticas:
 - Evita `get_node()` con rutas largas; prefiere `@onready var` o referencias exportadas
 - Tipado estático siempre que sea posible: `var speed: float = 200.0`
 
+## Plataformas objetivo y orientación
+
+- **Plataformas**: Web (primario), iOS y Android (próximos)
+- **Orientación**: **portrait** en todas las plataformas
+- Viewport base: **720×1280** — `stretch/mode="canvas_items"`, `stretch/aspect="expand"`
+- `window/handheld/orientation="portrait"` en project.godot para iOS/Android
+- El layout **siempre debe adaptarse al ancho real de pantalla**: usa `get_viewport().get_visible_rect()` en `_ready()` para obtener `_screen_w` y `_screen_h` dinámicamente
+- Nunca hardcodees posiciones absolutas; calcula con porcentajes o márgenes sobre `_screen_w`/`_screen_h`
+- El fondo (background) debe cubrir la pantalla con cover-crop: `scale = maxf(screen_w/tex_w, screen_h/tex_h)`
+
+## Input multi-plataforma (mouse + touch)
+
+- Maneja **siempre** `InputEventMouseButton`/`InputEventMouseMotion` Y `InputEventScreenTouch`/`InputEventScreenDrag` en el mismo `_input()`
+- Extrae la posición del evento en un helper `_event_pos(event)` para evitar duplicación
+
 ## Rendimiento web (GL Compatibility)
 
 - Este proyecto exporta a web → usa **GL Compatibility**, nunca Vulkan/Forward+

@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://c5i5vjwlu0ivt"
-path="res://.godot/imported/face-1.png-ac9e15c862b42b0f6e209716b2d2ff1b.ctex"
+uid="uid://b85n0fck2kwhx"
+path="res://.godot/imported/hierba.png-72e6a89ac4b980c4bc15b46b8ec8e148.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/face-1.png"
-dest_files=["res://.godot/imported/face-1.png-ac9e15c862b42b0f6e209716b2d2ff1b.ctex"]
+source_file="res://assets/hierba.png"
+dest_files=["res://.godot/imported/hierba.png-72e6a89ac4b980c4bc15b46b8ec8e148.ctex"]
 
 [params]
 

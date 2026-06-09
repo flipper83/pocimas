@@ -1,0 +1,17 @@
+[gd_scene format=3 uid="uid://bkdnajt2fg3x5"]
+
+[ext_resource type="Script" path="res://scripts/die_node.gd" id="1_die"]
+
+[node name="Die" type="Node2D"]
+script = ExtResource("1_die")
+
+[node name="Sprite2D" type="Sprite2D" parent="."]
+
+[node name="Label" type="Label" parent="."]
+offset_left = -44.0
+offset_top = -46.0
+offset_right = 44.0
+offset_bottom = 46.0
+theme_override_font_sizes/font_size = 40
+horizontal_alignment = 1
+vertical_alignment = 1

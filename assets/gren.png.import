@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://c85eot34ny1oh"
-path="res://.godot/imported/sheet-transparent.png-2c1592b52827a8f52695530a686d6144.ctex"
+uid="uid://bwcitbqb8pdck"
+path="res://.godot/imported/gren.png-b6fb756912fb2c02dd20f9faf127a0cb.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/sheet-transparent.png"
-dest_files=["res://.godot/imported/sheet-transparent.png-2c1592b52827a8f52695530a686d6144.ctex"]
+source_file="res://assets/gren.png"
+dest_files=["res://.godot/imported/gren.png-b6fb756912fb2c02dd20f9faf127a0cb.ctex"]
 
 [params]
 

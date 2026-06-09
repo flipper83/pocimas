@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://cydjsw3yfnkuj"
-path="res://.godot/imported/face-3.png-b00abba3174e86498b6b5c03e2f53604.ctex"
+uid="uid://csc7lhp74hwem"
+path="res://.godot/imported/operator.png-ab8c4ab6512cfb46a1694c38acbd3748.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/face-3.png"
-dest_files=["res://.godot/imported/face-3.png-b00abba3174e86498b6b5c03e2f53604.ctex"]
+source_file="res://assets/operator.png"
+dest_files=["res://.godot/imported/operator.png-ab8c4ab6512cfb46a1694c38acbd3748.ctex"]
 
 [params]
 

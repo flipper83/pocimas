@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://c0p4fk75gxc2i"
-path="res://.godot/imported/face-6.png-a25dc76be18725a49b91a9863b0f002c.ctex"
+uid="uid://deqq5e5pjsseh"
+path="res://.godot/imported/volatility.png-e67d7d1a8f5775526eb22eb5b88b7d47.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/face-6.png"
-dest_files=["res://.godot/imported/face-6.png-a25dc76be18725a49b91a9863b0f002c.ctex"]
+source_file="res://assets/volatility.png"
+dest_files=["res://.godot/imported/volatility.png-e67d7d1a8f5775526eb22eb5b88b7d47.ctex"]
 
 [params]
 
