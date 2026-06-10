@@ -3,9 +3,17 @@ extends Node2D
 const BG_TEXTURE := preload("res://assets/texture.png")
 const DIE_SCENE := preload("res://scenes/die.tscn")
 const ELEMENT_SCENE := preload("res://scenes/element.tscn")
+const OPERATION_SCENE := preload("res://scenes/operation.tscn")
 
 const ELEMENT_TYPES: Array = ["fire", "water", "salt", "grass"]
+const OP_TYPES: Array = ["gt", "lt", "eq"]
 const DICE_BOTTOM_MARGIN := 80.0
+
+# Board row layout — 5 elements + 4 operators, centered in screen width
+# element sprite: 252px * 0.35 = 88.2px  |  operator sprite: 157px * 0.38 = 59.7px
+const _ELEM_HALF_W := 44.1
+const _OP_HALF_W := 29.85
+const _SLOT_W := 147.9  # _ELEM_HALF_W*2 + _OP_HALF_W*2
 
 enum State { IDLE, SELECTING_TARGET }
 
@@ -13,6 +21,7 @@ var _screen_w: float
 var _screen_h: float
 var _dice: Array = []
 var _elements: Array = []
+var _operations: Array = []
 var _dragged_die: DieNode = null
 var _drag_offset: Vector2
 var _state: State = State.IDLE
@@ -50,13 +59,23 @@ func _setup_overlay() -> void:
 	add_child(_overlay)
 
 func _setup_elements() -> void:
-	var spacing := _screen_w / 5.0
+	var total_w := 5.0 * _ELEM_HALF_W * 2.0 + 4.0 * _OP_HALF_W * 2.0
+	var start_x := (_screen_w - total_w) * 0.5 + _ELEM_HALF_W
+	var row_y := _screen_h * 0.42
+
 	for i in 5:
+		var elem_x := start_x + i * _SLOT_W
 		var elem: ElementNode = ELEMENT_SCENE.instantiate()
 		add_child(elem)
-		var pos := Vector2(spacing * 0.5 + spacing * i, _screen_h * 0.42)
-		elem.setup(ELEMENT_TYPES[randi() % ELEMENT_TYPES.size()], pos)
+		elem.setup(ELEMENT_TYPES[randi() % ELEMENT_TYPES.size()], Vector2(elem_x, row_y))
 		_elements.append(elem)
+
+		if i < 4:
+			var op_x := elem_x + _ELEM_HALF_W + _OP_HALF_W
+			var op: OperationNode = OPERATION_SCENE.instantiate()
+			add_child(op)
+			op.setup(OP_TYPES[randi() % OP_TYPES.size()], Vector2(op_x, row_y))
+			_operations.append(op)
 
 func _setup_dice() -> void:
 	var colors: Array = ["red", "red", "white", "green", "green", "blue", "blue"]
@@ -105,18 +124,46 @@ func _try_drop(drop_pos: Vector2) -> void:
 	var die := _dragged_die
 	_dragged_die = null
 	die.z_index = 1
-	for elem: ElementNode in _elements:
-		if elem.get_hit_rect().has_point(drop_pos):
-			if die.matches_element(elem.element_type):
-				die.position = elem.position
-				die.home_position = elem.position
-				die.is_placed = true
-				_apply_element_effect(elem.element_type, die.die_value)
-			else:
-				elem.show_fail()
-				die.animate_return()
+
+	for i in _elements.size():
+		var elem: ElementNode = _elements[i]
+		if not elem.get_hit_rect().has_point(drop_pos):
+			continue
+		if elem.placed_die_value != -1:
+			die.animate_return()
 			return
+		if not die.matches_element(elem.element_type):
+			elem.show_fail()
+			die.animate_return()
+			return
+		var violated_op := _find_violated_op(die.die_value, i)
+		if violated_op:
+			violated_op.show_fail()
+			die.animate_return()
+			return
+		die.position = elem.position
+		die.home_position = elem.position
+		die.is_placed = true
+		elem.placed_die_value = die.die_value
+		_apply_element_effect(elem.element_type, die.die_value)
+		return
+
 	die.animate_return()
+
+func _find_violated_op(die_value: int, elem_index: int) -> OperationNode:
+	if elem_index > 0:
+		var left_val := (_elements[elem_index - 1] as ElementNode).placed_die_value
+		if left_val != -1:
+			var op := _operations[elem_index - 1] as OperationNode
+			if not op.check(left_val, die_value):
+				return op
+	if elem_index < _elements.size() - 1:
+		var right_val := (_elements[elem_index + 1] as ElementNode).placed_die_value
+		if right_val != -1:
+			var op := _operations[elem_index] as OperationNode
+			if not op.check(die_value, right_val):
+				return op
+	return null
 
 func _apply_element_effect(element_type: String, placed_value: int) -> void:
 	match element_type:
