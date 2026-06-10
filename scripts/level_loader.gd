@@ -19,7 +19,7 @@ static func load_from_file(path: String) -> Dictionary:
 	return parse_json(text)
 
 static func parse_json(text: String) -> Dictionary:
-	var result := JSON.parse_string(text)
+	var result: Variant = JSON.parse_string(text)
 	if result == null:
 		push_error("LevelLoader: invalid JSON")
 		return {}
