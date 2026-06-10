@@ -1,7 +1,7 @@
 class_name ElementNode
 extends Node2D
 
-const SPRITE_SCALE := 0.45
+const SPRITE_SCALE := 0.35
 const TEXTURES: Dictionary = {
 	"fire": preload("res://assets/fuego.png"),
 	"water": preload("res://assets/agua.png"),
@@ -10,6 +10,7 @@ const TEXTURES: Dictionary = {
 }
 
 var element_type: String = ""
+var placed_die_value: int = -1
 
 @onready var _sprite: Sprite2D = $Sprite2D
 
@@ -26,6 +27,6 @@ func show_fail() -> void:
 
 func get_hit_rect() -> Rect2:
 	if not _sprite or not _sprite.texture:
-		return Rect2(position - Vector2(56, 58), Vector2(113, 116))
+		return Rect2(position - Vector2(44, 46), Vector2(88, 92))
 	var half := _sprite.texture.get_size() * SPRITE_SCALE * 0.5
 	return Rect2(position - half, half * 2.0)
