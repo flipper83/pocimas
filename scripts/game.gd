@@ -121,19 +121,18 @@ func _setup_elements_from_level() -> void:
 	var ops_data: Array = _level_data.get("operations", [])
 	var vol_data: Dictionary = _level_data.get("volatility", {})
 
-	# Compute bounding box to center level on screen
+	# Compute bounding box using all elements (including "vol" type)
 	var min_gx := 99999; var max_gx := -99999
 	var min_gy := 99999; var max_gy := -99999
 	for e: Dictionary in elems_data:
-		min_gx = mini(min_gx, e.get("gx", 0))
-		max_gx = maxi(max_gx, e.get("gx", 0))
-		min_gy = mini(min_gy, e.get("gy", 0))
-		max_gy = maxi(max_gy, e.get("gy", 0))
+		min_gx = mini(min_gx, e.get("gx", 0)); max_gx = maxi(max_gx, e.get("gx", 0))
+		min_gy = mini(min_gy, e.get("gy", 0)); max_gy = maxi(max_gy, e.get("gy", 0))
+	# Legacy: separate volatility field (old format)
 	if not vol_data.is_empty():
-		min_gx = mini(min_gx, vol_data.get("gx", 0))
-		max_gx = maxi(max_gx, vol_data.get("gx", 0))
-		min_gy = mini(min_gy, vol_data.get("gy", 0))
-		max_gy = maxi(max_gy, vol_data.get("gy", 0))
+		min_gx = mini(min_gx, vol_data.get("gx", 0)); max_gx = maxi(max_gx, vol_data.get("gx", 0))
+		min_gy = mini(min_gy, vol_data.get("gy", 0)); max_gy = maxi(max_gy, vol_data.get("gy", 0))
+	if min_gx == 99999: min_gx = 0; if max_gx == -99999: max_gx = 0
+	if min_gy == 99999: min_gy = 0; if max_gy == -99999: max_gy = 0
 
 	var level_w := (max_gx - min_gx) * grid_unit
 	var level_h := (max_gy - min_gy) * grid_unit
@@ -142,17 +141,21 @@ func _setup_elements_from_level() -> void:
 		(_screen_h * 0.25 + (_screen_h * 0.55 - level_h) * 0.5) - min_gy * grid_unit
 	)
 
-	# Volatility
+	# Legacy separate volatility field
 	if not vol_data.is_empty():
 		_volatility.position = _grid_to_screen(vol_data.get("gx", 0), vol_data.get("gy", 0), grid_unit, origin)
 
-	# Elements (keyed by id for operation lookup)
+	# Elements — "vol" type positions the volatility node, not an ElementNode
 	var elem_by_id: Dictionary = {}
 	for e: Dictionary in elems_data:
+		var type: String = e.get("type", "fire")
+		var pos := _grid_to_screen(e.get("gx", 0), e.get("gy", 0), grid_unit, origin)
+		if type == "vol":
+			_volatility.position = pos
+			continue
 		var elem: ElementNode = ELEMENT_SCENE.instantiate()
 		add_child(elem)
-		var pos := _grid_to_screen(e.get("gx", 0), e.get("gy", 0), grid_unit, origin)
-		elem.setup(e.get("type", "fire"), pos)
+		elem.setup(type, pos)
 		_elements.append(elem)
 		elem_by_id[e.get("id", _elements.size() - 1)] = _elements.size() - 1
 

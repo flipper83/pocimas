@@ -1,411 +1,444 @@
 extends Node2D
 
-const ELEMENT_SCENE := preload("res://scenes/element.tscn")
-const OPERATION_SCENE := preload("res://scenes/operation.tscn")
+const ELEMENT_SCENE    := preload("res://scenes/element.tscn")
 const VOLATILITY_SCENE := preload("res://scenes/volatility.tscn")
 
-const ELEMENT_TYPES: Array = ["fire", "water", "salt", "grass"]
-const OP_TYPES: Array = ["gt", "lt", "eq", "ne"]
-const OP_SYMBOLS: Dictionary = {"gt": ">", "lt": "<", "eq": "=", "ne": "≠"}
-const GRID_UNIT: int = 110
-const GRID_COLS: int = 7
-const GRID_ROWS: int = 8
+const _ETEX: Dictionary = {
+	"fire":  preload("res://assets/fuego.png")   as Texture2D,
+	"water": preload("res://assets/agua.png")    as Texture2D,
+	"salt":  preload("res://assets/sal.png")     as Texture2D,
+	"grass": preload("res://assets/hierba.png")  as Texture2D,
+}
+const _VOL_TEX: Texture2D = preload("res://assets/volatility.png")
 
-var _screen_w: float
-var _screen_h: float
+const SIDEBAR_W  := 210.0
+const GRID_UNIT  := 110
+const GRID_COLS  := 9
+const GRID_ROWS  := 7
+const PORT_R     := 9.0
+const PORT_D     := 52.0
 
-# Grid origin (top-left of grid area)
-var _grid_origin: Vector2
+const ELEM_TYPES: Array[String] = ["fire", "water", "salt", "grass"]
+const OP_TYPES: Array[String]   = ["gt", "lt", "eq", "ne"]
+const OP_SYM: Dictionary        = {"gt": ">", "lt": "<", "eq": "=", "ne": "≠"}
+const DICE_COLORS: Array[String] = ["red", "white", "green", "blue"]
+const DICE_COL: Dictionary = {
+	"red": Color(0.9, 0.2, 0.2), "white": Color(0.85, 0.85, 0.85),
+	"green": Color(0.2, 0.75, 0.2), "blue": Color(0.2, 0.5, 1.0),
+}
 
-# Data model
-var _elements: Array = []   # [{id, type, gx, gy, node}]
-var _operations: Array = [] # [{from, to, type, node}]
-var _volatility_gx: int = 3
-var _volatility_gy: int = 0
-var _volatility_node: VolatilityNode = null
-var _dice_counts: Dictionary = {"red": 2, "white": 1, "green": 2, "blue": 2}
-var _next_elem_id: int = 0
+const _PAL: Dictionary = {
+	"fire":  Rect2(10,  72, 85, 72),
+	"water": Rect2(110, 72, 85, 72),
+	"salt":  Rect2(10, 154, 85, 72),
+	"grass": Rect2(110,154, 85, 72),
+	"vol":   Rect2(60, 236, 85, 72),
+}
+const _OPR: Dictionary = {
+	"gt": Rect2(8,   345, 42, 42),
+	"lt": Rect2(56,  345, 42, 42),
+	"eq": Rect2(104, 345, 42, 42),
+	"ne": Rect2(152, 345, 42, 42),
+}
+const _BTN_SAVE  := Rect2(8, 480, 190, 40)
+const _BTN_LOAD  := Rect2(8, 528, 190, 40)
+const _BTN_CLEAR := Rect2(8, 576, 90,  40)
+const _BTN_DEL   := Rect2(108, 576, 90, 40)
 
-# Interaction state
-enum Tool { ELEM, OP_FROM, VOLATILITY }
-var _active_tool: Tool = Tool.ELEM
-var _selected_elem_type: String = "fire"
-var _selected_op_type: String = "gt"
-var _op_from_id: int = -1
-var _op_from_node: ElementNode = null
+var _font: Font
+var _origin: Vector2
 
-# UI refs
-var _tool_label: Label
-var _elem_type_btn: OptionButton
-var _op_type_btn: OptionButton
-var _dice_labels: Dictionary = {}
-var _status_label: Label
+var _elems: Array = []  # {id, type, gx, gy, node: Node2D}
+var _conns: Array = []  # {from_id, to_id, op}
+var _next_id: int = 0
+var _dice: Dictionary = {"red": 2, "white": 1, "green": 2, "blue": 2}
+var _sel_op: String = "gt"
+
+enum _Mode { IDLE, PLACE, MOVE, CONNECT }
+var _mode: _Mode = _Mode.IDLE
+var _place_type: String = ""
+var _move_id: int = -1
+var _move_off: Vector2
+var _conn_from_id: int = -1
+var _conn_from_port: Vector2
+var _mouse: Vector2
+var _status: String = "Listo  |  Clic der: borrar"
 
 func _ready() -> void:
-	var rect := get_viewport().get_visible_rect()
-	_screen_w = rect.size.x
-	_screen_h = rect.size.y
-	_grid_origin = Vector2(20.0, _screen_h * 0.12)
-	_build_ui()
-	_spawn_volatility()
+	_font = ThemeDB.fallback_font
+	if OS.get_name() in ["Windows", "macOS", "Linux"]:
+		DisplayServer.window_set_size(Vector2i(1280, 820))
+	_origin = Vector2(SIDEBAR_W + 14.0, 12.0)
 
-func _build_ui() -> void:
-	var panel := ColorRect.new()
-	panel.color = Color(0.08, 0.08, 0.18, 0.95)
-	panel.position = Vector2(0, 0)
-	panel.size = Vector2(_screen_w, _screen_h * 0.11)
-	add_child(panel)
+func _process(_dt: float) -> void:
+	queue_redraw()
 
-	_tool_label = Label.new()
-	_tool_label.add_theme_font_size_override("font_size", 22)
-	_tool_label.add_theme_color_override("font_color", Color.WHITE)
-	_tool_label.position = Vector2(10, 6)
-	_tool_label.size = Vector2(_screen_w - 20, 28)
-	add_child(_tool_label)
+# ── Helpers ────────────────────────────────────────────────────────────────────
 
-	# Element type picker
-	var elem_lbl := Label.new()
-	elem_lbl.text = "Elem:"
-	elem_lbl.add_theme_font_size_override("font_size", 20)
-	elem_lbl.add_theme_color_override("font_color", Color.WHITE)
-	elem_lbl.position = Vector2(10, 38)
-	add_child(elem_lbl)
+func _gpos(gx: int, gy: int) -> Vector2:
+	return _origin + Vector2(gx * GRID_UNIT, gy * GRID_UNIT)
 
-	_elem_type_btn = OptionButton.new()
-	for t: String in ELEMENT_TYPES:
-		_elem_type_btn.add_item(t)
-	_elem_type_btn.position = Vector2(60, 34)
-	_elem_type_btn.size = Vector2(140, 34)
-	_elem_type_btn.item_selected.connect(_on_elem_type_changed)
-	add_child(_elem_type_btn)
+func _snap(pos: Vector2) -> Vector2i:
+	var local := pos - _origin
+	return Vector2i(
+		clampi(roundi(local.x / GRID_UNIT), 0, GRID_COLS - 1),
+		clampi(roundi(local.y / GRID_UNIT), 0, GRID_ROWS - 1))
 
-	# Op type picker
-	var op_lbl := Label.new()
-	op_lbl.text = "Op:"
-	op_lbl.add_theme_font_size_override("font_size", 20)
-	op_lbl.add_theme_color_override("font_color", Color.WHITE)
-	op_lbl.position = Vector2(215, 38)
-	add_child(op_lbl)
+func _find(id: int) -> Dictionary:
+	for e: Dictionary in _elems:
+		if e.id == id: return e
+	return {}
 
-	_op_type_btn = OptionButton.new()
-	for t: String in OP_TYPES:
-		_op_type_btn.add_item(OP_SYMBOLS[t])
-	_op_type_btn.position = Vector2(248, 34)
-	_op_type_btn.size = Vector2(90, 34)
-	_op_type_btn.item_selected.connect(_on_op_type_changed)
-	add_child(_op_type_btn)
+func _elem_at(gx: int, gy: int) -> Dictionary:
+	for e: Dictionary in _elems:
+		if e.gx == gx and e.gy == gy: return e
+	return {}
 
-	# Tool buttons
-	var btn_elem := _make_btn("+ Elem", Vector2(350, 34), _on_tool_elem)
-	add_child(btn_elem)
-	var btn_op := _make_btn("+ Op", Vector2(440, 34), _on_tool_op)
-	add_child(btn_op)
-	var btn_vol := _make_btn("Vol", Vector2(510, 34), _on_tool_vol)
-	add_child(btn_vol)
+func _elem_near(pos: Vector2, radius: float) -> Dictionary:
+	for e: Dictionary in _elems:
+		if (e.node as Node2D).position.distance_to(pos) <= radius: return e
+	return {}
 
-	# Dice count row
-	var dx := 10.0
-	for color: String in ["red", "white", "green", "blue"]:
-		var minus_btn := _make_btn("-", Vector2(dx, 76), func(): _change_dice(color, -1))
-		minus_btn.size = Vector2(30, 28)
-		add_child(minus_btn)
-		var lbl := Label.new()
-		lbl.add_theme_font_size_override("font_size", 18)
-		lbl.add_theme_color_override("font_color", Color.WHITE)
-		lbl.position = Vector2(dx + 32, 78)
-		lbl.size = Vector2(70, 24)
-		lbl.text = "%s:%d" % [color[0].to_upper(), _dice_counts[color]]
-		add_child(lbl)
-		_dice_labels[color] = lbl
-		var plus_btn := _make_btn("+", Vector2(dx + 100, 76), func(): _change_dice(color, 1))
-		plus_btn.size = Vector2(30, 28)
-		add_child(plus_btn)
-		dx += 140.0
+func _get_ports(e: Dictionary) -> Array[Vector2]:
+	var p: Vector2 = (e.node as Node2D).position
+	var r: Array[Vector2] = []
+	r.append(p + Vector2(0, -PORT_D))
+	r.append(p + Vector2(PORT_D, 0))
+	r.append(p + Vector2(0, PORT_D))
+	r.append(p + Vector2(-PORT_D, 0))
+	return r
 
-	# Bottom buttons
-	var save_btn := _make_btn("Guardar JSON", Vector2(10, _screen_h - 80), _on_save)
-	save_btn.size = Vector2(200, 48)
-	add_child(save_btn)
-	var load_btn := _make_btn("Cargar JSON", Vector2(220, _screen_h - 80), _on_load)
-	load_btn.size = Vector2(200, 48)
-	add_child(load_btn)
-	var clear_btn := _make_btn("Limpiar", Vector2(430, _screen_h - 80), _on_clear)
-	clear_btn.size = Vector2(140, 48)
-	add_child(clear_btn)
-	var del_btn := _make_btn("Del último", Vector2(580, _screen_h - 80), _on_delete_last)
-	del_btn.size = Vector2(140, 48)
-	add_child(del_btn)
+func _nearest_port_toward(e: Dictionary, target: Vector2) -> Vector2:
+	var best := Vector2.ZERO
+	var best_d := INF
+	for pt: Vector2 in _get_ports(e):
+		var d := target.distance_to(pt)
+		if d < best_d:
+			best_d = d; best = pt
+	return best
 
-	_status_label = Label.new()
-	_status_label.add_theme_font_size_override("font_size", 18)
-	_status_label.add_theme_color_override("font_color", Color(0.7, 1.0, 0.7, 1.0))
-	_status_label.position = Vector2(10, _screen_h - 120)
-	_status_label.size = Vector2(_screen_w - 20, 30)
-	add_child(_status_label)
+func _port_at(pos: Vector2) -> Dictionary:
+	for e: Dictionary in _elems:
+		for pt: Vector2 in _get_ports(e):
+			if pos.distance_to(pt) <= PORT_R * 2.2:
+				return {"elem": e, "port": pt}
+	return {}
 
-	_update_tool_label()
+# ── Actions ────────────────────────────────────────────────────────────────────
 
-func _make_btn(txt: String, pos: Vector2, cb: Callable) -> Button:
-	var btn := Button.new()
-	btn.text = txt
-	btn.add_theme_font_size_override("font_size", 20)
-	btn.position = pos
-	btn.size = Vector2(80, 34)
-	btn.pressed.connect(cb)
-	return btn
-
-func _spawn_volatility() -> void:
-	_volatility_node = VOLATILITY_SCENE.instantiate()
-	add_child(_volatility_node)
-	_volatility_node.position = _gxy_to_pos(_volatility_gx, _volatility_gy)
-	_volatility_node.z_index = 2
-
-func _gxy_to_pos(gx: int, gy: int) -> Vector2:
-	return _grid_origin + Vector2(gx * GRID_UNIT, gy * GRID_UNIT)
-
-func _pos_to_gxy(pos: Vector2) -> Vector2i:
-	var local := pos - _grid_origin
-	return Vector2i(int(round(local.x / GRID_UNIT)), int(round(local.y / GRID_UNIT)))
-
-func _draw() -> void:
-	# Grid lines
-	var grid_color := Color(0.3, 0.3, 0.6, 0.4)
-	for col in GRID_COLS + 1:
-		var x := _grid_origin.x + col * GRID_UNIT
-		draw_line(Vector2(x, _grid_origin.y), Vector2(x, _grid_origin.y + GRID_ROWS * GRID_UNIT), grid_color, 1.0)
-	for row in GRID_ROWS + 1:
-		var y := _grid_origin.y + row * GRID_UNIT
-		draw_line(Vector2(_grid_origin.x, y), Vector2(_grid_origin.x + GRID_COLS * GRID_UNIT, y), grid_color, 1.0)
-	# Op-from highlight
-	if _active_tool == Tool.OP_FROM and _op_from_node:
-		var p := _op_from_node.position
-		draw_circle(p, 52, Color(1.0, 1.0, 0.0, 0.25))
-
-func _input(event: InputEvent) -> void:
-	if not (event is InputEventMouseButton):
-		return
-	var mb := event as InputEventMouseButton
-	if not (mb.button_index == MOUSE_BUTTON_LEFT and mb.pressed):
-		return
-	var pos := mb.position
-	if pos.y < _screen_h * 0.11 or pos.y > _screen_h - 100:
-		return
-
-	var gxy := _pos_to_gxy(pos)
-	var gx := gxy.x; var gy := gxy.y
-	if gx < 0 or gx >= GRID_COLS or gy < 0 or gy >= GRID_ROWS:
-		return
-
-	match _active_tool:
-		Tool.ELEM:
-			_place_element(gx, gy)
-		Tool.OP_FROM:
-			_handle_op_click(gx, gy)
-		Tool.VOLATILITY:
-			_move_volatility(gx, gy)
-
-func _place_element(gx: int, gy: int) -> void:
-	# Check if occupied
-	for e: Dictionary in _elements:
-		if e.gx == gx and e.gy == gy:
-			_set_status("Ya hay un elemento aquí")
-			return
-
-	var elem: ElementNode = ELEMENT_SCENE.instantiate()
-	add_child(elem)
-	elem.setup(_selected_elem_type, _gxy_to_pos(gx, gy))
-	var id := _next_elem_id
-	_next_elem_id += 1
-	_elements.append({"id": id, "type": _selected_elem_type, "gx": gx, "gy": gy, "node": elem})
-	_set_status("Elemento %s colocado en (%d,%d)" % [_selected_elem_type, gx, gy])
-
-func _handle_op_click(gx: int, gy: int) -> void:
-	# Find element at this grid cell
-	var found_entry: Dictionary = {}
-	for e: Dictionary in _elements:
-		if e.gx == gx and e.gy == gy:
-			found_entry = e
-			break
-	if found_entry.is_empty():
-		_set_status("Selecciona un elemento para la operación")
-		return
-
-	if _op_from_id == -1:
-		_op_from_id = found_entry.id
-		_op_from_node = found_entry.node as ElementNode
-		_set_status("Selecciona el segundo elemento")
-		queue_redraw()
+func _place(type: String, gx: int, gy: int) -> void:
+	if not _elem_at(gx, gy).is_empty():
+		_status = "Celda ocupada"; return
+	var world := _gpos(gx, gy)
+	var node: Node2D
+	if type == "vol":
+		node = VOLATILITY_SCENE.instantiate() as Node2D
+		add_child(node)
+		node.position = world
 	else:
-		if found_entry.id == _op_from_id:
-			_op_from_id = -1
-			_op_from_node = null
-			_set_status("Selección cancelada")
-			queue_redraw()
-			return
-		_place_operation(_op_from_id, found_entry.id)
-		_op_from_id = -1
-		_op_from_node = null
-		queue_redraw()
+		var elem := ELEMENT_SCENE.instantiate() as ElementNode
+		add_child(elem)
+		elem.setup(type, world)
+		node = elem
+	var id := _next_id
+	_next_id += 1
+	_elems.append({"id": id, "type": type, "gx": gx, "gy": gy, "node": node})
+	_status = "%s en (%d,%d)" % [type, gx, gy]
 
-func _place_operation(from_id: int, to_id: int) -> void:
-	var from_entry: Dictionary = {}
-	var to_entry: Dictionary = {}
-	for e: Dictionary in _elements:
-		if e.id == from_id: from_entry = e
-		if e.id == to_id: to_entry = e
-	if from_entry.is_empty() or to_entry.is_empty():
-		return
+func _connect(from_id: int, to_id: int) -> void:
+	if from_id == to_id: return
+	for c: Dictionary in _conns:
+		if (c.from_id == from_id and c.to_id == to_id) or \
+		   (c.from_id == to_id and c.to_id == from_id):
+			_status = "Conexión ya existe"; return
+	_conns.append({"from_id": from_id, "to_id": to_id, "op": _sel_op})
+	_status = "Op %s añadida" % OP_SYM[_sel_op]
 
-	var op: OperationNode = OPERATION_SCENE.instantiate()
-	add_child(op)
-	var idx_a := _elements.find(from_entry)
-	var idx_b := _elements.find(to_entry)
-	op.setup_between(_selected_op_type,
-		(from_entry.node as Node2D).position, (to_entry.node as Node2D).position, idx_a, idx_b)
-	_operations.append({"from": from_id, "to": to_id, "type": _selected_op_type, "node": op})
-	_set_status("Operación %s añadida" % OP_SYMBOLS[_selected_op_type])
-
-func _move_volatility(gx: int, gy: int) -> void:
-	_volatility_gx = gx
-	_volatility_gy = gy
-	_volatility_node.position = _gxy_to_pos(gx, gy)
-	_set_status("Volatilidad movida a (%d,%d)" % [gx, gy])
-
-func _on_tool_elem() -> void:
-	_active_tool = Tool.ELEM
-	_op_from_id = -1
-	_op_from_node = null
-	_update_tool_label()
-	queue_redraw()
-
-func _on_tool_op() -> void:
-	_active_tool = Tool.OP_FROM
-	_op_from_id = -1
-	_op_from_node = null
-	_update_tool_label()
-	queue_redraw()
-
-func _on_tool_vol() -> void:
-	_active_tool = Tool.VOLATILITY
-	_update_tool_label()
-
-func _on_elem_type_changed(idx: int) -> void:
-	_selected_elem_type = ELEMENT_TYPES[idx]
-
-func _on_op_type_changed(idx: int) -> void:
-	_selected_op_type = OP_TYPES[idx]
-
-func _change_dice(color: String, delta: int) -> void:
-	_dice_counts[color] = maxi(0, _dice_counts[color] + delta)
-	(_dice_labels[color] as Label).text = "%s:%d" % [color[0].to_upper(), _dice_counts[color]]
-
-func _update_tool_label() -> void:
-	var names := ["Colocar elemento", "Conectar operación (clic 1°, clic 2°)", "Mover volatilidad"]
-	_tool_label.text = "Herramienta: " + names[_active_tool]
-
-func _set_status(msg: String) -> void:
-	_status_label.text = msg
+func _delete_elem(id: int) -> void:
+	var entry := _find(id)
+	if entry.is_empty(): return
+	_conns = _conns.filter(func(c: Dictionary) -> bool:
+		return c.from_id != id and c.to_id != id)
+	(entry.node as Node).queue_free()
+	_elems.erase(entry)
+	_status = "Elemento borrado"
 
 func _on_clear() -> void:
-	for e: Dictionary in _elements:
-		(e.node as Node).queue_free()
-	for o: Dictionary in _operations:
-		(o.node as Node).queue_free()
-	_elements.clear()
-	_operations.clear()
-	_next_elem_id = 0
-	_op_from_id = -1
-	_op_from_node = null
-	queue_redraw()
-	_set_status("Nivel limpiado")
+	for e: Dictionary in _elems: (e.node as Node).queue_free()
+	_elems.clear(); _conns.clear(); _next_id = 0
+	_mode = _Mode.IDLE; _status = "Limpiado"
 
-func _on_delete_last() -> void:
-	if not _operations.is_empty():
-		var last: Dictionary = _operations.pop_back()
-		(last.node as Node).queue_free()
-		_set_status("Última operación eliminada")
-	elif not _elements.is_empty():
-		var last: Dictionary = _elements.pop_back()
-		# Remove ops referencing this element
-		var to_remove: Array = []
-		for o: Dictionary in _operations:
-			if o.from == last.id or o.to == last.id:
-				to_remove.append(o)
-		for o: Dictionary in to_remove:
-			_operations.erase(o)
-			(o.node as Node).queue_free()
-		(last.node as Node).queue_free()
-		_set_status("Último elemento eliminado")
+# ── Input ──────────────────────────────────────────────────────────────────────
 
-func _on_save() -> void:
-	var data := _build_level_data()
-	var path := "user://level.json"
-	if LevelLoader.save_to_file(path, data):
-		_set_status("Guardado en " + path)
-		print("Level saved to: ", ProjectSettings.globalize_path(path))
-	else:
-		_set_status("Error al guardar")
-
-func _on_load() -> void:
-	var path := "user://level.json"
-	var data := LevelLoader.load_from_file(path)
-	if data.is_empty():
-		_set_status("No se pudo cargar " + path)
+func _input(event: InputEvent) -> void:
+	var pos: Vector2
+	if event is InputEventMouseMotion:
+		pos = (event as InputEventMouseMotion).position
+		_mouse = pos
+		if _mode == _Mode.MOVE:
+			var entry := _find(_move_id)
+			if not entry.is_empty():
+				(entry.node as Node2D).position = pos + _move_off
 		return
-	_on_clear()
-	_load_level_data(data)
-	_set_status("Nivel cargado")
+	if not (event is InputEventMouseButton): return
+	var mb := event as InputEventMouseButton
+	pos = mb.position
+	_mouse = pos
 
-func _build_level_data() -> Dictionary:
+	if mb.button_index == MOUSE_BUTTON_RIGHT and mb.pressed:
+		_handle_rclick(pos); return
+	if mb.button_index != MOUSE_BUTTON_LEFT: return
+	if mb.pressed: _handle_press(pos)
+	else:          _handle_release(pos)
+
+func _handle_rclick(pos: Vector2) -> void:
+	for i in _conns.size():
+		var c: Dictionary = _conns[i]
+		var ea := _find(c.from_id); var eb := _find(c.to_id)
+		if ea.is_empty() or eb.is_empty(): continue
+		var mid := ((ea.node as Node2D).position + (eb.node as Node2D).position) * 0.5
+		if pos.distance_to(mid) < 22.0:
+			_conns.remove_at(i); _status = "Conexión borrada"; return
+	var entry := _elem_near(pos, 48.0)
+	if not entry.is_empty(): _delete_elem(entry.id)
+
+func _handle_press(pos: Vector2) -> void:
+	if pos.x < SIDEBAR_W:
+		_handle_sidebar_press(pos); return
+
+	# Canvas: port first, then move
+	var ph := _port_at(pos)
+	if not ph.is_empty():
+		_mode = _Mode.CONNECT
+		_conn_from_id   = (ph.elem as Dictionary).id
+		_conn_from_port = ph.port as Vector2
+		_status = "Conectando…"; return
+
+	var entry := _elem_near(pos, 48.0)
+	if not entry.is_empty():
+		_mode = _Mode.MOVE
+		_move_id  = entry.id
+		_move_off = (entry.node as Node2D).position - pos
+
+func _handle_sidebar_press(pos: Vector2) -> void:
+	for type: String in _PAL:
+		if (_PAL[type] as Rect2).has_point(pos):
+			_mode = _Mode.PLACE; _place_type = type
+			_status = "Arrastrando %s…" % type; return
+	for op: String in _OPR:
+		if (_OPR[op] as Rect2).has_point(pos):
+			_sel_op = op; return
+	for i in DICE_COLORS.size():
+		var y := 400.0 + i * 34.0
+		var color := DICE_COLORS[i]
+		if Rect2(52, y, 26, 26).has_point(pos): _dice[color] = maxi(0, _dice[color] - 1); return
+		if Rect2(148, y, 26, 26).has_point(pos): _dice[color] += 1; return
+	if _BTN_SAVE.has_point(pos):  _on_save(); return
+	if _BTN_LOAD.has_point(pos):  _on_load(); return
+	if _BTN_CLEAR.has_point(pos): _on_clear(); return
+	if _BTN_DEL.has_point(pos):
+		if not _conns.is_empty():
+			_conns.pop_back(); _status = "Última op borrada"
+
+func _handle_release(pos: Vector2) -> void:
+	match _mode:
+		_Mode.PLACE:
+			if pos.x > SIDEBAR_W:
+				var g := _snap(pos); _place(_place_type, g.x, g.y)
+			_mode = _Mode.IDLE
+		_Mode.MOVE:
+			var entry := _find(_move_id)
+			if not entry.is_empty():
+				var g := _snap(pos)
+				var occ := _elem_at(g.x, g.y)
+				if not occ.is_empty() and occ.id != _move_id:
+					(entry.node as Node2D).position = _gpos(entry.gx, entry.gy)
+				else:
+					(entry.node as Node2D).position = _gpos(g.x, g.y)
+					entry["gx"] = g.x; entry["gy"] = g.y
+					_status = "Movido a (%d,%d)" % [g.x, g.y]
+			_mode = _Mode.IDLE; _move_id = -1
+		_Mode.CONNECT:
+			var target := _elem_near(pos, PORT_D + 12.0)
+			if not target.is_empty() and target.id != _conn_from_id:
+				_connect(_conn_from_id, target.id)
+			_mode = _Mode.IDLE; _conn_from_id = -1
+
+# ── Draw ───────────────────────────────────────────────────────────────────────
+
+func _draw() -> void:
+	_draw_sidebar()
+	_draw_grid()
+	_draw_connections()
+	_draw_ports()
+	_draw_ghost()
+	_draw_rubber_band()
+
+func _draw_sidebar() -> void:
+	draw_rect(Rect2(0, 0, SIDEBAR_W, 820), Color(0.08, 0.08, 0.18))
+	draw_line(Vector2(SIDEBAR_W, 0), Vector2(SIDEBAR_W, 820), Color(0.3, 0.3, 0.6), 2.0)
+
+	draw_string(_font, Vector2(12, 28), "EDITOR", HORIZONTAL_ALIGNMENT_LEFT, -1, 22, Color.WHITE)
+	_dsep(60, "Elementos")
+	for type: String in _PAL:
+		var r: Rect2 = _PAL[type]
+		var hov := r.has_point(_mouse)
+		var armed := _mode == _Mode.PLACE and _place_type == type
+		draw_rect(r, Color(0.25, 0.22, 0.08) if armed else (Color(0.22, 0.22, 0.4) if hov else Color(0.13, 0.13, 0.28)))
+		draw_rect(r, Color(1.0, 0.85, 0.2) if armed else Color(0.4, 0.4, 0.7), false, 1.5)
+		var tex: Texture2D = _VOL_TEX if type == "vol" else _ETEX.get(type) as Texture2D
+		if tex:
+			var pad := Vector2(10, 8); var tsz := r.size - pad * 2 - Vector2(0, 14)
+			draw_texture_rect(tex, Rect2(r.position + pad, tsz), false)
+		var lbl := {"fire":"Fuego","water":"Agua","salt":"Sal","grass":"Hierba","vol":"Volatil."}
+		draw_string(_font, Vector2(r.get_center().x, r.end.y - 3),
+			lbl.get(type, type), HORIZONTAL_ALIGNMENT_CENTER, r.size.x, 13, Color.WHITE)
+
+	_dsep(333, "Operador activo")
+	for op: String in _OPR:
+		var r: Rect2 = _OPR[op]
+		var sel := op == _sel_op
+		draw_rect(r, Color(0.35, 0.2, 0.05) if sel else Color(0.13, 0.13, 0.28))
+		draw_rect(r, Color(1.0, 0.7, 0.2) if sel else Color(0.4, 0.4, 0.7), false, 2.0)
+		draw_string(_font, r.get_center() + Vector2(0, 9), OP_SYM[op],
+			HORIZONTAL_ALIGNMENT_CENTER, -1, 22, Color.WHITE)
+
+	_dsep(393, "Dados")
+	for i in DICE_COLORS.size():
+		var y := 400.0 + i * 34.0
+		var color := DICE_COLORS[i]
+		var dc: Color = DICE_COL[color]
+		draw_rect(Rect2(8, y, 40, 26), dc.darkened(0.4))
+		draw_string(_font, Vector2(28, y + 19), color.substr(0, 1).to_upper(),
+			HORIZONTAL_ALIGNMENT_CENTER, -1, 15, dc.lightened(0.3))
+		_dbtn(Rect2(52, y, 26, 26), "-")
+		draw_string(_font, Vector2(91, y + 19), str(_dice[color]),
+			HORIZONTAL_ALIGNMENT_CENTER, 50, 17, Color.WHITE)
+		_dbtn(Rect2(148, y, 26, 26), "+")
+
+	_dsep(472, "")
+	_dbtn(_BTN_SAVE,  "Guardar JSON")
+	_dbtn(_BTN_LOAD,  "Cargar JSON")
+	_dbtn(_BTN_CLEAR, "Limpiar")
+	_dbtn(_BTN_DEL,   "Del última op")
+
+	draw_string(_font, Vector2(8, 628), _status,
+		HORIZONTAL_ALIGNMENT_LEFT, SIDEBAR_W - 10, 13, Color(0.7, 1.0, 0.7))
+	var mode_lbl := ["Listo", "Colocar  (suelta en grid)", "Moviendo…", "Conectando…"]
+	draw_string(_font, Vector2(8, 648), mode_lbl[_mode],
+		HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color(0.8, 0.8, 0.4))
+
+func _dsep(y: float, label: String) -> void:
+	draw_line(Vector2(8, y), Vector2(SIDEBAR_W - 8, y), Color(0.3, 0.3, 0.55), 1.0)
+	if label != "":
+		draw_string(_font, Vector2(12, y + 14), label,
+			HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color(0.55, 0.55, 0.85))
+
+func _dbtn(r: Rect2, label: String) -> void:
+	var hov := r.has_point(_mouse)
+	draw_rect(r, Color(0.25, 0.15, 0.4) if hov else Color(0.15, 0.1, 0.25))
+	draw_rect(r, Color(0.55, 0.35, 0.75), false, 1.5)
+	draw_string(_font, r.get_center() + Vector2(0, 6),
+		label, HORIZONTAL_ALIGNMENT_CENTER, r.size.x - 2, 14, Color.WHITE)
+
+func _draw_grid() -> void:
+	var gc := Color(0.22, 0.22, 0.45, 0.5)
+	for c in GRID_COLS + 1:
+		var x := _origin.x + c * GRID_UNIT
+		draw_line(Vector2(x, _origin.y), Vector2(x, _origin.y + GRID_ROWS * GRID_UNIT), gc, 1.0)
+	for r in GRID_ROWS + 1:
+		var y := _origin.y + r * GRID_UNIT
+		draw_line(Vector2(_origin.x, y), Vector2(_origin.x + GRID_COLS * GRID_UNIT, y), gc, 1.0)
+
+func _draw_connections() -> void:
+	for c: Dictionary in _conns:
+		var ea := _find(c.from_id); var eb := _find(c.to_id)
+		if ea.is_empty() or eb.is_empty(): continue
+		var pa: Vector2 = (ea.node as Node2D).position
+		var pb: Vector2 = (eb.node as Node2D).position
+		var port_a := _nearest_port_toward(ea, pb)
+		var port_b := _nearest_port_toward(eb, pa)
+		draw_line(port_a, port_b, Color(0.85, 0.65, 0.1, 0.9), 2.5)
+		_draw_arrowhead(port_a, port_b)
+		var mid := (port_a + port_b) * 0.5
+		draw_circle(mid, 18.0, Color(0.12, 0.08, 0.02))
+		draw_arc(mid, 18.0, 0.0, TAU, 24, Color(0.9, 0.7, 0.1), 2.0)
+		draw_string(_font, mid + Vector2(0, 8), OP_SYM[c.op],
+			HORIZONTAL_ALIGNMENT_CENTER, -1, 20, Color.WHITE)
+
+func _draw_arrowhead(from: Vector2, to: Vector2) -> void:
+	var dir := (to - from).normalized()
+	var tip := to - dir * 20.0
+	var perp := Vector2(-dir.y, dir.x) * 6.0
+	var col := Color(0.85, 0.65, 0.1, 0.9)
+	draw_line(tip + perp, to - dir * 24.0, col, 2.0)
+	draw_line(tip - perp, to - dir * 24.0, col, 2.0)
+
+func _draw_ports() -> void:
+	for e: Dictionary in _elems:
+		var ep: Vector2 = (e.node as Node2D).position
+		if _mouse.distance_to(ep) > 70.0 and _mode != _Mode.CONNECT: continue
+		for pt: Vector2 in _get_ports(e):
+			var near := _mouse.distance_to(pt) <= PORT_R * 2.2
+			var col := Color(1.0, 0.9, 0.2) if near else Color(0.8, 0.65, 0.1, 0.6)
+			draw_circle(pt, PORT_R, col)
+			draw_arc(pt, PORT_R, 0.0, TAU, 16, Color(1, 1, 1, 0.5) if near else Color(0.3, 0.25, 0.0), 1.5)
+
+func _draw_ghost() -> void:
+	if _mode != _Mode.PLACE or _mouse.x <= SIDEBAR_W: return
+	var tex: Texture2D = _VOL_TEX if _place_type == "vol" else _ETEX.get(_place_type) as Texture2D
+	if tex:
+		var sz := Vector2(76, 68)
+		draw_texture_rect(tex, Rect2(_mouse - sz * 0.5, sz), false, Color(1, 1, 1, 0.5))
+	var g := _snap(_mouse)
+	var snapped := _gpos(g.x, g.y)
+	var occ := not _elem_at(g.x, g.y).is_empty()
+	draw_circle(snapped, 10.0, Color(1.0, 0.2, 0.2, 0.5) if occ else Color(1.0, 1.0, 0.2, 0.45))
+
+func _draw_rubber_band() -> void:
+	if _mode != _Mode.CONNECT: return
+	draw_line(_conn_from_port, _mouse, Color(0.9, 0.8, 0.2, 0.85), 2.5)
+	draw_circle(_conn_from_port, PORT_R + 2, Color(1.0, 0.9, 0.2))
+	var target := _elem_near(_mouse, PORT_D + 12.0)
+	if not target.is_empty() and target.id != _conn_from_id:
+		draw_circle((target.node as Node2D).position, PORT_D + 6, Color(0.9, 0.9, 0.2, 0.25))
+
+# ── JSON ───────────────────────────────────────────────────────────────────────
+
+func _build_data() -> Dictionary:
 	var elems_arr: Array = []
-	for e: Dictionary in _elements:
+	for e: Dictionary in _elems:
 		elems_arr.append({"id": e.id, "type": e.type, "gx": e.gx, "gy": e.gy})
 	var ops_arr: Array = []
-	for o: Dictionary in _operations:
-		ops_arr.append({"from": o.from, "to": o.to, "type": o.type})
-	return {
-		"dice": _dice_counts.duplicate(),
-		"grid_unit": GRID_UNIT,
-		"elements": elems_arr,
-		"operations": ops_arr,
-		"volatility": {"gx": _volatility_gx, "gy": _volatility_gy},
-	}
+	for c: Dictionary in _conns:
+		ops_arr.append({"from": c.from_id, "to": c.to_id, "type": c.op})
+	return {"dice": _dice.duplicate(), "grid_unit": GRID_UNIT,
+		"elements": elems_arr, "operations": ops_arr}
 
-func _load_level_data(data: Dictionary) -> void:
+func _on_save() -> void:
+	if LevelLoader.save_to_file("user://level.json", _build_data()):
+		_status = "Guardado  →  user://level.json"
+		print("Saved: ", ProjectSettings.globalize_path("user://level.json"))
+	else:
+		_status = "Error al guardar"
+
+func _on_load() -> void:
+	var data := LevelLoader.load_from_file("user://level.json")
+	if data.is_empty():
+		_status = "No se encontró level.json"; return
+	_on_clear()
 	if data.has("dice"):
-		_dice_counts = data.dice.duplicate()
-		for color: String in _dice_counts:
-			if _dice_labels.has(color):
-				(_dice_labels[color] as Label).text = "%s:%d" % [color[0].to_upper(), _dice_counts[color]]
-
-	var vol_data: Dictionary = data.get("volatility", {})
-	if not vol_data.is_empty():
-		_volatility_gx = vol_data.get("gx", 0)
-		_volatility_gy = vol_data.get("gy", 0)
-		_volatility_node.position = _gxy_to_pos(_volatility_gx, _volatility_gy)
-
+		_dice = (data.dice as Dictionary).duplicate()
+	var old_to_new: Dictionary = {}
 	for e: Dictionary in data.get("elements", []):
-		var elem: ElementNode = ELEMENT_SCENE.instantiate()
-		add_child(elem)
-		elem.setup(e.get("type", "fire"), _gxy_to_pos(e.get("gx", 0), e.get("gy", 0)))
-		var id: int = e.get("id", _next_elem_id)
-		_next_elem_id = maxi(_next_elem_id, id + 1)
-		_elements.append({"id": id, "type": e.get("type", "fire"), "gx": e.get("gx", 0), "gy": e.get("gy", 0), "node": elem})
-
-	var elem_id_to_idx: Dictionary = {}
-	for i in _elements.size():
-		elem_id_to_idx[(_elements[i] as Dictionary).id] = i
-
-	for o: Dictionary in data.get("operations", []):
-		var from_id: int = o.get("from", 0)
-		var to_id: int = o.get("to", 1)
-		if not elem_id_to_idx.has(from_id) or not elem_id_to_idx.has(to_id):
-			continue
-		var idx_a: int = elem_id_to_idx[from_id]
-		var idx_b: int = elem_id_to_idx[to_id]
-		var op: OperationNode = OPERATION_SCENE.instantiate()
-		add_child(op)
-		var pos_a: Vector2 = ((_elements[idx_a] as Dictionary).node as Node2D).position
-		var pos_b: Vector2 = ((_elements[idx_b] as Dictionary).node as Node2D).position
-		op.setup_between(o.get("type", "gt"), pos_a, pos_b, idx_a, idx_b)
-		_operations.append({"from": from_id, "to": to_id, "type": o.get("type", "gt"), "node": op})
+		var old_id: int = e.get("id", 0)
+		_place(e.get("type", "fire"), e.get("gx", 0), e.get("gy", 0))
+		old_to_new[old_id] = (_elems.back() as Dictionary).id
+	var saved_op := _sel_op
+	for c: Dictionary in data.get("operations", []):
+		var of_: int = c.get("from", 0); var ot: int = c.get("to", 0)
+		if not old_to_new.has(of_) or not old_to_new.has(ot): continue
+		_sel_op = c.get("type", "gt")
+		_connect(old_to_new[of_], old_to_new[ot])
+	_sel_op = saved_op
+	_status = "Cargado"
