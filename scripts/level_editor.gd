@@ -261,7 +261,7 @@ func _place_operation(from_id: int, to_id: int) -> void:
 	var idx_a := _elements.find(from_entry)
 	var idx_b := _elements.find(to_entry)
 	op.setup_between(_selected_op_type,
-		from_entry.node.position, to_entry.node.position, idx_a, idx_b)
+		(from_entry.node as Node2D).position, (to_entry.node as Node2D).position, idx_a, idx_b)
 	_operations.append({"from": from_id, "to": to_id, "type": _selected_op_type, "node": op})
 	_set_status("Operación %s añadida" % OP_SYMBOLS[_selected_op_type])
 
@@ -405,8 +405,7 @@ func _load_level_data(data: Dictionary) -> void:
 		var idx_b: int = elem_id_to_idx[to_id]
 		var op: OperationNode = OPERATION_SCENE.instantiate()
 		add_child(op)
-		op.setup_between(o.get("type", "gt"),
-			(_elements[idx_a] as Dictionary).node.position,
-			(_elements[idx_b] as Dictionary).node.position,
-			idx_a, idx_b)
+		var pos_a: Vector2 = ((_elements[idx_a] as Dictionary).node as Node2D).position
+		var pos_b: Vector2 = ((_elements[idx_b] as Dictionary).node as Node2D).position
+		op.setup_between(o.get("type", "gt"), pos_a, pos_b, idx_a, idx_b)
 		_operations.append({"from": from_id, "to": to_id, "type": o.get("type", "gt"), "node": op})

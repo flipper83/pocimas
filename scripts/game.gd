@@ -164,8 +164,8 @@ func _setup_elements_from_level() -> void:
 			continue
 		var idx_a: int = elem_by_id[from_id]
 		var idx_b: int = elem_by_id[to_id]
-		var pos_a := _elements[idx_a].position
-		var pos_b := _elements[idx_b].position
+		var pos_a: Vector2 = (_elements[idx_a] as ElementNode).position
+		var pos_b: Vector2 = (_elements[idx_b] as ElementNode).position
 		var op: OperationNode = OPERATION_SCENE.instantiate()
 		add_child(op)
 		op.setup_between(o.get("type", "gt"), pos_a, pos_b, idx_a, idx_b)
