@@ -7,7 +7,7 @@ const OPERATION_SCENE := preload("res://scenes/operation.tscn")
 const VOLATILITY_SCENE := preload("res://scenes/volatility.tscn")
 
 const ELEMENT_TYPES: Array = ["fire", "water", "salt", "grass"]
-const OP_TYPES: Array = ["gt", "lt", "eq"]
+const OP_TYPES: Array = ["gt", "lt", "eq", "ne"]
 const DICE_BOTTOM_MARGIN := 80.0
 
 # Board row layout — 5 elements + 4 operators centered in screen width
@@ -15,6 +15,8 @@ const DICE_BOTTOM_MARGIN := 80.0
 const _ELEM_HALF_W := 44.1
 const _OP_HALF_W := 29.85
 const _SLOT_W := 147.9  # _ELEM_HALF_W*2 + _OP_HALF_W*2
+
+var _level_data: Dictionary = {}
 
 enum State { IDLE, SELECTING_TARGET }
 
@@ -33,6 +35,9 @@ var _pending_placed_value: int = 0
 var _overlay: ColorRect = null
 var _game_over: bool = false
 
+func load_level(data: Dictionary) -> void:
+	_level_data = data
+
 func _ready() -> void:
 	var rect := get_viewport().get_visible_rect()
 	_screen_w = rect.size.x
@@ -41,8 +46,12 @@ func _ready() -> void:
 	_setup_background()
 	_setup_overlay()
 	_setup_volatility()
-	_setup_elements()
-	_setup_dice()
+	if _level_data.is_empty():
+		_setup_elements()
+		_setup_dice()
+	else:
+		_setup_elements_from_level()
+		_setup_dice_from_level()
 	_setup_reroll_button()
 
 func _setup_background() -> void:
@@ -95,6 +104,83 @@ func _setup_dice() -> void:
 	var spacing := _screen_w / 7.0
 	var dice_y := _screen_h - DICE_BOTTOM_MARGIN
 	for i in 7:
+		var die: DieNode = DIE_SCENE.instantiate()
+		add_child(die)
+		var pos := Vector2(spacing * 0.5 + spacing * i, dice_y)
+		die.setup(colors[i], randi_range(1, 6), pos)
+		die.z_index = 1
+		die.animate_appear(i * 0.08)
+		_dice.append(die)
+
+func _grid_to_screen(gx: int, gy: int, grid_unit: int, origin: Vector2) -> Vector2:
+	return origin + Vector2(gx * grid_unit, gy * grid_unit)
+
+func _setup_elements_from_level() -> void:
+	var grid_unit: int = _level_data.get("grid_unit", 110)
+	var elems_data: Array = _level_data.get("elements", [])
+	var ops_data: Array = _level_data.get("operations", [])
+	var vol_data: Dictionary = _level_data.get("volatility", {})
+
+	# Compute bounding box to center level on screen
+	var min_gx := 99999; var max_gx := -99999
+	var min_gy := 99999; var max_gy := -99999
+	for e: Dictionary in elems_data:
+		min_gx = mini(min_gx, e.get("gx", 0))
+		max_gx = maxi(max_gx, e.get("gx", 0))
+		min_gy = mini(min_gy, e.get("gy", 0))
+		max_gy = maxi(max_gy, e.get("gy", 0))
+	if not vol_data.is_empty():
+		min_gx = mini(min_gx, vol_data.get("gx", 0))
+		max_gx = maxi(max_gx, vol_data.get("gx", 0))
+		min_gy = mini(min_gy, vol_data.get("gy", 0))
+		max_gy = maxi(max_gy, vol_data.get("gy", 0))
+
+	var level_w := (max_gx - min_gx) * grid_unit
+	var level_h := (max_gy - min_gy) * grid_unit
+	var origin := Vector2(
+		(_screen_w - level_w) * 0.5 - min_gx * grid_unit,
+		(_screen_h * 0.25 + (_screen_h * 0.55 - level_h) * 0.5) - min_gy * grid_unit
+	)
+
+	# Volatility
+	if not vol_data.is_empty():
+		_volatility.position = _grid_to_screen(vol_data.get("gx", 0), vol_data.get("gy", 0), grid_unit, origin)
+
+	# Elements (keyed by id for operation lookup)
+	var elem_by_id: Dictionary = {}
+	for e: Dictionary in elems_data:
+		var elem: ElementNode = ELEMENT_SCENE.instantiate()
+		add_child(elem)
+		var pos := _grid_to_screen(e.get("gx", 0), e.get("gy", 0), grid_unit, origin)
+		elem.setup(e.get("type", "fire"), pos)
+		_elements.append(elem)
+		elem_by_id[e.get("id", _elements.size() - 1)] = _elements.size() - 1
+
+	# Operations
+	for o: Dictionary in ops_data:
+		var from_id: int = o.get("from", 0)
+		var to_id: int = o.get("to", 1)
+		if not elem_by_id.has(from_id) or not elem_by_id.has(to_id):
+			continue
+		var idx_a: int = elem_by_id[from_id]
+		var idx_b: int = elem_by_id[to_id]
+		var pos_a := _elements[idx_a].position
+		var pos_b := _elements[idx_b].position
+		var op: OperationNode = OPERATION_SCENE.instantiate()
+		add_child(op)
+		op.setup_between(o.get("type", "gt"), pos_a, pos_b, idx_a, idx_b)
+		_operations.append(op)
+
+func _setup_dice_from_level() -> void:
+	var dice_counts: Dictionary = _level_data.get("dice", {"red": 2, "white": 1, "green": 2, "blue": 2})
+	var colors: Array = []
+	for color: String in dice_counts:
+		for _i in dice_counts[color]:
+			colors.append(color)
+	colors.shuffle()
+	var spacing := _screen_w / float(colors.size())
+	var dice_y := _screen_h - DICE_BOTTOM_MARGIN
+	for i in colors.size():
 		var die: DieNode = DIE_SCENE.instantiate()
 		add_child(die)
 		var pos := Vector2(spacing * 0.5 + spacing * i, dice_y)
@@ -190,18 +276,31 @@ func _try_drop(drop_pos: Vector2) -> void:
 	die.animate_return()
 
 func _find_violated_op(die_value: int, elem_index: int) -> OperationNode:
-	if elem_index > 0:
-		var left_val := (_elements[elem_index - 1] as ElementNode).placed_die_value
-		if left_val != -1:
-			var op := _operations[elem_index - 1] as OperationNode
-			if not op.check(left_val, die_value):
-				return op
-	if elem_index < _elements.size() - 1:
-		var right_val := (_elements[elem_index + 1] as ElementNode).placed_die_value
-		if right_val != -1:
-			var op := _operations[elem_index] as OperationNode
-			if not op.check(die_value, right_val):
-				return op
+	if _level_data.is_empty():
+		# Random mode: linear row, operations indexed by gap position
+		if elem_index > 0:
+			var left_val := (_elements[elem_index - 1] as ElementNode).placed_die_value
+			if left_val != -1:
+				var op := _operations[elem_index - 1] as OperationNode
+				if not op.check(left_val, die_value):
+					return op
+		if elem_index < _elements.size() - 1:
+			var right_val := (_elements[elem_index + 1] as ElementNode).placed_die_value
+			if right_val != -1:
+				var op := _operations[elem_index] as OperationNode
+				if not op.check(die_value, right_val):
+					return op
+	else:
+		# Level mode: check all ops that reference this element
+		for op: OperationNode in _operations:
+			if op.from_elem_idx == elem_index:
+				var other_val := (_elements[op.to_elem_idx] as ElementNode).placed_die_value
+				if other_val != -1 and not op.check(die_value, other_val):
+					return op
+			elif op.to_elem_idx == elem_index:
+				var other_val := (_elements[op.from_elem_idx] as ElementNode).placed_die_value
+				if other_val != -1 and not op.check(other_val, die_value):
+					return op
 	return null
 
 func _apply_element_effect(element_type: String, placed_value: int) -> void:
