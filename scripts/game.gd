@@ -4,12 +4,13 @@ const BG_TEXTURE := preload("res://assets/texture.png")
 const DIE_SCENE := preload("res://scenes/die.tscn")
 const ELEMENT_SCENE := preload("res://scenes/element.tscn")
 const OPERATION_SCENE := preload("res://scenes/operation.tscn")
+const VOLATILITY_SCENE := preload("res://scenes/volatility.tscn")
 
 const ELEMENT_TYPES: Array = ["fire", "water", "salt", "grass"]
 const OP_TYPES: Array = ["gt", "lt", "eq"]
 const DICE_BOTTOM_MARGIN := 80.0
 
-# Board row layout — 5 elements + 4 operators, centered in screen width
+# Board row layout — 5 elements + 4 operators centered in screen width
 # element sprite: 252px * 0.35 = 88.2px  |  operator sprite: 157px * 0.38 = 59.7px
 const _ELEM_HALF_W := 44.1
 const _OP_HALF_W := 29.85
@@ -22,12 +23,15 @@ var _screen_h: float
 var _dice: Array = []
 var _elements: Array = []
 var _operations: Array = []
+var _volatility: VolatilityNode = null
+var _reroll_btn: Button = null
 var _dragged_die: DieNode = null
 var _drag_offset: Vector2
 var _state: State = State.IDLE
 var _pending_effect: String = ""
 var _pending_placed_value: int = 0
 var _overlay: ColorRect = null
+var _game_over: bool = false
 
 func _ready() -> void:
 	var rect := get_viewport().get_visible_rect()
@@ -36,8 +40,10 @@ func _ready() -> void:
 	randomize()
 	_setup_background()
 	_setup_overlay()
+	_setup_volatility()
 	_setup_elements()
 	_setup_dice()
+	_setup_reroll_button()
 
 func _setup_background() -> void:
 	var bg := Sprite2D.new()
@@ -57,6 +63,12 @@ func _setup_overlay() -> void:
 	_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_overlay.visible = false
 	add_child(_overlay)
+
+func _setup_volatility() -> void:
+	_volatility = VOLATILITY_SCENE.instantiate()
+	add_child(_volatility)
+	_volatility.position = Vector2(_screen_w * 0.5, _screen_h * 0.22)
+	_volatility.z_index = 1
 
 func _setup_elements() -> void:
 	var total_w := 5.0 * _ELEM_HALF_W * 2.0 + 4.0 * _OP_HALF_W * 2.0
@@ -91,13 +103,40 @@ func _setup_dice() -> void:
 		die.animate_appear(i * 0.08)
 		_dice.append(die)
 
+func _setup_reroll_button() -> void:
+	_reroll_btn = Button.new()
+	_reroll_btn.text = "↺  Relanzar"
+	_reroll_btn.add_theme_font_size_override("font_size", 28)
+	_reroll_btn.add_theme_color_override("font_color", Color.WHITE)
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(0.15, 0.15, 0.35, 0.92)
+	style.corner_radius_top_left = 12
+	style.corner_radius_top_right = 12
+	style.corner_radius_bottom_left = 12
+	style.corner_radius_bottom_right = 12
+	style.content_margin_left = 16
+	style.content_margin_right = 16
+	_reroll_btn.add_theme_stylebox_override("normal", style)
+	var style_hover := style.duplicate() as StyleBoxFlat
+	style_hover.bg_color = Color(0.25, 0.25, 0.5, 0.95)
+	_reroll_btn.add_theme_stylebox_override("hover", style_hover)
+	_reroll_btn.size = Vector2(240, 64)
+	_reroll_btn.position = Vector2((_screen_w - 240) * 0.5, _screen_h * 0.68)
+	_reroll_btn.pressed.connect(_on_reroll_pressed)
+	add_child(_reroll_btn)
+
 func _input(event: InputEvent) -> void:
+	if _game_over:
+		return
 	var pos := _event_pos(event)
 	if pos == Vector2.INF:
 		return
 
 	if _state == State.SELECTING_TARGET:
 		if _is_press(event):
+			if _volatility.get_hit_rect().has_point(pos):
+				_apply_to_volatility()
+				return
 			for die: DieNode in _dice:
 				if not die.is_placed and die.get_hit_rect().has_point(pos):
 					_apply_to_die(die)
@@ -173,9 +212,6 @@ func _apply_element_effect(element_type: String, placed_value: int) -> void:
 			pass
 
 func _enter_selection_mode(effect: String, placed_value: int) -> void:
-	var available: Array = _dice.filter(func(d: DieNode): return not d.is_placed)
-	if available.is_empty():
-		return
 	_state = State.SELECTING_TARGET
 	_pending_effect = effect
 	_pending_placed_value = placed_value
@@ -184,6 +220,8 @@ func _enter_selection_mode(effect: String, placed_value: int) -> void:
 		if not die.is_placed:
 			die.set_highlighted(true)
 			die.z_index = 6
+	_volatility.set_highlighted(true)
+	_volatility.z_index = 6
 
 func _exit_selection_mode() -> void:
 	_state = State.IDLE
@@ -192,6 +230,8 @@ func _exit_selection_mode() -> void:
 		die.set_highlighted(false)
 		if not die.is_placed:
 			die.z_index = 1
+	_volatility.set_highlighted(false)
+	_volatility.z_index = 1
 
 func _apply_to_die(die: DieNode) -> void:
 	_exit_selection_mode()
@@ -203,6 +243,95 @@ func _apply_to_die(die: DieNode) -> void:
 		"grass":
 			die.die_value = 7 - die.die_value
 	die.update_value_display()
+
+func _apply_to_volatility() -> void:
+	_exit_selection_mode()
+	var new_value: int
+	match _pending_effect:
+		"fire": new_value = _volatility.die_value + _pending_placed_value
+		"water": new_value = _volatility.die_value - _pending_placed_value
+		"grass": new_value = 7 - _volatility.die_value
+	_volatility.die_value = new_value
+	_volatility.update_value_display()
+	if new_value > 6:
+		var t := create_tween()
+		t.tween_interval(0.4)
+		t.tween_callback(_show_game_over.bind(true))
+	elif new_value < 1:
+		var t := create_tween()
+		t.tween_interval(0.4)
+		t.tween_callback(_show_game_over.bind(false))
+
+func _on_reroll_pressed() -> void:
+	if _game_over:
+		return
+	for die: DieNode in _dice:
+		if not die.is_placed:
+			die.die_value = randi_range(1, 6)
+			die.update_value_display()
+	_volatility.die_value += 1
+	_volatility.update_value_display()
+	if _volatility.die_value > 6:
+		var t := create_tween()
+		t.tween_interval(0.35)
+		t.tween_callback(_show_game_over.bind(true))
+
+func _show_game_over(is_explosion: bool) -> void:
+	_game_over = true
+	if _reroll_btn:
+		_reroll_btn.disabled = true
+
+	var layer := CanvasLayer.new()
+	layer.layer = 10
+	add_child(layer)
+
+	var bg := ColorRect.new()
+	bg.color = Color(0, 0, 0, 0.84)
+	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
+	layer.add_child(bg)
+
+	var title := Label.new()
+	title.text = "¡La poción es inestable!" if is_explosion else "¡Sopa repugnante!"
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	title.add_theme_font_size_override("font_size", 54)
+	title.add_theme_color_override("font_color", Color.WHITE)
+	title.size = Vector2(_screen_w * 0.85, 150)
+	title.position = Vector2(_screen_w * 0.075, _screen_h * 0.28)
+	layer.add_child(title)
+
+	var msg := Label.new()
+	msg.text = "Limpia el laboratorio,\nrepara lo que haya explotado\ny vuelve a empezar." \
+		if is_explosion else \
+		"La poción se ha neutralizado.\nAcabas de preparar\nuna sopa repugnante."
+	msg.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	msg.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	msg.add_theme_font_size_override("font_size", 32)
+	msg.add_theme_color_override("font_color", Color(0.85, 0.85, 0.85, 1.0))
+	msg.size = Vector2(_screen_w * 0.85, 220)
+	msg.position = Vector2(_screen_w * 0.075, _screen_h * 0.43)
+	layer.add_child(msg)
+
+	var btn := Button.new()
+	btn.text = "Volver a empezar"
+	btn.add_theme_font_size_override("font_size", 34)
+	btn.add_theme_color_override("font_color", Color.WHITE)
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(0.25, 0.12, 0.05, 0.95)
+	style.corner_radius_top_left = 14
+	style.corner_radius_top_right = 14
+	style.corner_radius_bottom_left = 14
+	style.corner_radius_bottom_right = 14
+	style.content_margin_left = 20
+	style.content_margin_right = 20
+	btn.add_theme_stylebox_override("normal", style)
+	var style_hover := style.duplicate() as StyleBoxFlat
+	style_hover.bg_color = Color(0.45, 0.22, 0.08, 0.98)
+	btn.add_theme_stylebox_override("hover", style_hover)
+	btn.size = Vector2(_screen_w * 0.65, 76)
+	btn.position = Vector2(_screen_w * 0.175, _screen_h * 0.63)
+	btn.pressed.connect(func(): get_tree().reload_current_scene())
+	layer.add_child(btn)
 
 func _event_pos(event: InputEvent) -> Vector2:
 	if event is InputEventMouseButton or event is InputEventMouseMotion:
