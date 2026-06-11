@@ -1,0 +1,102 @@
+{
+  "dice": {
+    "red": 3,
+    "white": 2,
+    "green": 2,
+    "blue": 1
+  },
+  "grid_unit": 110,
+  "elements": [
+    {
+      "id": 3,
+      "type": "fire",
+      "gx": 4,
+      "gy": 1
+    },
+    {
+      "id": 6,
+      "type": "water",
+      "gx": 4,
+      "gy": 3
+    },
+    {
+      "id": 8,
+      "type": "fire",
+      "gx": 2,
+      "gy": 3
+    },
+    {
+      "id": 9,
+      "type": "fire",
+      "gx": 6,
+      "gy": 3
+    },
+    {
+      "id": 10,
+      "type": "grass",
+      "gx": 3,
+      "gy": 4
+    },
+    {
+      "id": 11,
+      "type": "grass",
+      "gx": 5,
+      "gy": 4
+    },
+    {
+      "id": 12,
+      "type": "salt",
+      "gx": 4,
+      "gy": 4
+    },
+    {
+      "id": 13,
+      "type": "salt",
+      "gx": 4,
+      "gy": 5
+    },
+    {
+      "id": 14,
+      "type": "vol",
+      "gx": 6,
+      "gy": 5
+    }
+  ],
+  "operations": [
+    {
+      "from": 8,
+      "to": 10,
+      "type": "eq"
+    },
+    {
+      "from": 11,
+      "to": 9,
+      "type": "eq"
+    },
+    {
+      "from": 3,
+      "to": 6,
+      "type": "lt"
+    },
+    {
+      "from": 6,
+      "to": 10,
+      "type": "gt"
+    },
+    {
+      "from": 6,
+      "to": 12,
+      "type": "gt"
+    },
+    {
+      "from": 6,
+      "to": 11,
+      "type": "gt"
+    },
+    {
+      "from": 12,
+      "to": 13,
+      "type": "lt"
+    }
+  ]
+}
