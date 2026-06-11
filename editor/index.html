@@ -1,0 +1,652 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Pocimas — Editor de Niveles</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { display: flex; height: 100vh; background: #111; font-family: system-ui, sans-serif; color: #ddd; overflow: hidden; }
+
+/* ── Sidebar ──────────────────────────────────────────── */
+#sidebar {
+  width: 230px; min-width: 230px;
+  background: #10101c;
+  border-right: 2px solid #2a2a44;
+  display: flex; flex-direction: column;
+  overflow-y: auto; gap: 16px; padding: 12px 10px 12px;
+}
+#sidebar h2 { font-size: 17px; letter-spacing: 3px; color: #aabbd4; padding-bottom: 8px; border-bottom: 1px solid #2a2a44; }
+.sec-title { font-size: 11px; color: #667; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px; }
+
+/* Palette */
+.palette { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.pal-item {
+  cursor: pointer; border-radius: 8px;
+  border: 2px solid #2a2a44; background: #181828;
+  display: flex; flex-direction: column; align-items: center;
+  padding: 8px 4px 4px; user-select: none;
+  transition: border-color .12s, background .12s;
+}
+.pal-item:hover  { border-color: #4a4a70; background: #20203a; }
+.pal-item.armed  { border-color: #c8920a; background: #221600; }
+.pal-item img    { width: 58px; height: 58px; object-fit: contain; pointer-events: none; }
+.pal-item span   { font-size: 11px; color: #bbb; margin-top: 3px; }
+
+/* Op buttons */
+.op-group { display: flex; gap: 5px; }
+.op-btn {
+  flex: 1; padding: 7px 0; font-size: 22px;
+  border: 2px solid #2a2a44; background: #181828;
+  color: #ccc; border-radius: 6px; cursor: pointer; transition: all .12s;
+}
+.op-btn:hover  { border-color: #4a4a70; background: #20203a; }
+.op-btn.active { border-color: #c8920a; background: #221600; color: #fff; }
+
+/* Dice */
+.dice-row  { display: flex; align-items: center; gap: 5px; margin-bottom: 6px; }
+.d-swatch  { width: 24px; height: 24px; border-radius: 4px; flex-shrink: 0; }
+.d-label   { width: 30px; font-size: 12px; color: #999; }
+.d-btn     { width: 28px; height: 28px; border: 1px solid #334; background: #181828; color: #fff; font-size: 17px; border-radius: 4px; cursor: pointer; }
+.d-btn:hover { background: #252545; }
+.d-count   { width: 24px; text-align: center; font-size: 16px; font-weight: bold; }
+
+/* Action buttons */
+.actions { display: flex; flex-direction: column; gap: 7px; }
+.act-btn {
+  padding: 9px; border: 1px solid #2a2a44; border-radius: 7px;
+  background: #14101e; color: #ccc; font-size: 13px; cursor: pointer; text-align: center;
+}
+.act-btn:hover { background: #1e1832; border-color: #4a4a70; }
+
+/* Status + help */
+#status   { font-size: 12px; color: #5d5; background: #091509; padding: 7px 9px; border-radius: 5px; min-height: 34px; line-height: 1.5; }
+.help     { font-size: 11px; color: #44466a; line-height: 1.9; }
+.help b   { color: #667; }
+
+/* ── Canvas ────────────────────────────────────────────── */
+#canvas-wrap { flex: 1; overflow: hidden; position: relative; background: #0d0d18; }
+canvas { display: block; }
+</style>
+</head>
+<body>
+
+<aside id="sidebar">
+  <h2>EDITOR</h2>
+
+  <div>
+    <div class="sec-title">Elementos</div>
+    <div class="palette" id="palette">
+      <div class="pal-item" data-type="fire">
+        <img src="../assets/fuego.png" alt="Fuego"><span>Fuego</span>
+      </div>
+      <div class="pal-item" data-type="water">
+        <img src="../assets/agua.png" alt="Agua"><span>Agua</span>
+      </div>
+      <div class="pal-item" data-type="salt">
+        <img src="../assets/sal.png" alt="Sal"><span>Sal</span>
+      </div>
+      <div class="pal-item" data-type="grass">
+        <img src="../assets/hierba.png" alt="Hierba"><span>Hierba</span>
+      </div>
+      <div class="pal-item" data-type="vol" style="grid-column:span 2">
+        <img src="../assets/volatility.png" alt="Volatil."><span>Volatilidad</span>
+      </div>
+    </div>
+  </div>
+
+  <div>
+    <div class="sec-title">Operador activo</div>
+    <div class="op-group">
+      <button class="op-btn active" data-op="gt">&gt;</button>
+      <button class="op-btn" data-op="lt">&lt;</button>
+      <button class="op-btn" data-op="eq">=</button>
+      <button class="op-btn" data-op="ne">≠</button>
+    </div>
+  </div>
+
+  <div>
+    <div class="sec-title">Dados</div>
+    <div id="dice-ui"></div>
+  </div>
+
+  <div class="actions">
+    <button class="act-btn" id="btn-save">💾 Guardar JSON</button>
+    <input type="file" id="file-in" accept=".json" style="display:none">
+    <button class="act-btn" id="btn-load">📂 Cargar JSON</button>
+    <button class="act-btn" id="btn-clear">🗑 Limpiar todo</button>
+  </div>
+
+  <div id="status">Listo — selecciona un elemento de la paleta</div>
+
+  <div class="help">
+    <b>Paleta</b> → clic para armar, luego clic en grid<br>
+    <b>Arrastrar</b> paleta → soltar en grid<br>
+    <b>Elemento</b> → arrastrar para mover<br>
+    <b>Puerto ●</b> → arrastrar para conectar<br>
+    <b>Rueda</b> → zoom · <b>Drag fondo</b> → pan<br>
+    <b>Clic der / Supr</b> → borrar bajo cursor<br>
+    <b>Esc</b> → cancelar herramienta
+  </div>
+</aside>
+
+<div id="canvas-wrap">
+  <canvas id="canvas"></canvas>
+</div>
+
+<script>
+// ── Constants ──────────────────────────────────────────────────────────────
+const GRID_UNIT = 110;
+const GRID_COLS = 9;
+const GRID_ROWS = 9;
+const PORT_D    = 52;   // world-unit distance from element center to port
+const PORT_HIT  = 14;   // world-unit hit radius for ports
+const ELEM_HALF = 44;   // world-unit half-size of element sprite
+const ELEM_HIT  = 48;   // world-unit hit radius for element drag
+
+const OP_SYM = { gt: '>', lt: '<', eq: '=', ne: '≠' };
+const DICE_COLORS = ['red', 'white', 'green', 'blue'];
+const DICE_CSS = { red: '#d43', white: '#ccc', green: '#4b4', blue: '#46f' };
+const ASSETS = { fire:'../assets/fuego.png', water:'../assets/agua.png',
+                 salt:'../assets/sal.png', grass:'../assets/hierba.png',
+                 vol:'../assets/volatility.png' };
+
+// ── State ──────────────────────────────────────────────────────────────────
+const st = {
+  elems: [],        // {id, type, gx, gy}
+  conns: [],        // {fromId, toId, op}
+  dice:  { red:2, white:1, green:2, blue:2 },
+  nextId: 0,
+  selOp: 'gt',
+};
+
+// Interaction
+let mode     = 'idle';  // idle | place | move | connect | pan
+let armType  = null;    // armed palette type
+let moveId   = null;    // id of element being moved
+let moveLx   = 0, moveLy = 0;  // live world pos while moving
+let connFrom = null;    // {id, port:{wx,wy}}
+let panX0    = 0, panY0 = 0, panVx0 = 0, panVy0 = 0;
+
+// View
+let vx = 80, vy = 60, zoom = 1;
+let mx = 0, my = 0;  // last mouse, screen coords
+
+// Images
+const imgs = {};
+for (const [k, src] of Object.entries(ASSETS)) {
+  const img = new Image();
+  img.onload = () => requestAnimationFrame(draw);
+  img.src = src;
+  imgs[k] = img;
+}
+
+// ── Canvas setup ───────────────────────────────────────────────────────────
+const canvas = document.getElementById('canvas');
+const ctx    = canvas.getContext('2d');
+
+function resize() {
+  const w = document.getElementById('canvas-wrap');
+  canvas.width  = w.clientWidth;
+  canvas.height = w.clientHeight;
+}
+
+// ── Transform ──────────────────────────────────────────────────────────────
+const w2s = (wx, wy) => [wx * zoom + vx, wy * zoom + vy];
+const s2w = (sx, sy) => [(sx - vx) / zoom, (sy - vy) / zoom];
+const snapGxy = (wx, wy) => [
+  Math.max(0, Math.min(GRID_COLS-1, Math.round(wx / GRID_UNIT))),
+  Math.max(0, Math.min(GRID_ROWS-1, Math.round(wy / GRID_UNIT))),
+];
+const gw2w = (gx, gy) => [gx * GRID_UNIT, gy * GRID_UNIT];
+
+// ── Queries ────────────────────────────────────────────────────────────────
+const findElem = id => st.elems.find(e => e.id === id) ?? null;
+const elemAt   = (gx, gy) => st.elems.find(e => e.gx===gx && e.gy===gy) ?? null;
+const elemNear = (wx, wy, r) => st.elems.find(e => {
+  const [ex, ey] = gw2w(e.gx, e.gy);
+  return Math.hypot(wx-ex, wy-ey) <= r;
+}) ?? null;
+
+function getPorts(e) {
+  const [wx, wy] = gw2w(e.gx, e.gy);
+  return [
+    {wx, wy: wy - PORT_D}, {wx: wx+PORT_D, wy},
+    {wx, wy: wy + PORT_D}, {wx: wx-PORT_D, wy},
+  ];
+}
+function nearestPortToward(e, twx, twy) {
+  return getPorts(e).reduce((best, p) => {
+    const d = Math.hypot(p.wx-twx, p.wy-twy);
+    return d < best.d ? {p, d} : best;
+  }, {p: null, d: Infinity}).p;
+}
+function portAt(wx, wy) {
+  for (const e of st.elems)
+    for (const p of getPorts(e))
+      if (Math.hypot(wx-p.wx, wy-p.wy) <= PORT_HIT) return {elem: e, port: p};
+  return null;
+}
+
+// ── Actions ────────────────────────────────────────────────────────────────
+function placeElem(type, gx, gy) {
+  if (elemAt(gx, gy)) { setStatus('Celda ocupada'); return false; }
+  st.elems.push({id: st.nextId++, type, gx, gy});
+  setStatus(`${type} en (${gx},${gy})`);
+  return true;
+}
+function connectElems(fromId, toId) {
+  if (fromId === toId) return;
+  if (st.conns.find(c => (c.fromId===fromId&&c.toId===toId)||(c.fromId===toId&&c.toId===fromId))) {
+    setStatus('Conexión ya existe'); return;
+  }
+  st.conns.push({fromId, toId, op: st.selOp});
+  setStatus(`Op ${OP_SYM[st.selOp]} añadida`);
+}
+function deleteAt(wx, wy) {
+  // Connection midpoints first
+  for (let i = st.conns.length-1; i >= 0; i--) {
+    const c = st.conns[i];
+    const ea = findElem(c.fromId), eb = findElem(c.toId);
+    if (!ea || !eb) continue;
+    const [ax, ay] = gw2w(ea.gx, ea.gy), [bx, by] = gw2w(eb.gx, eb.gy);
+    if (Math.hypot(wx-(ax+bx)/2, wy-(ay+by)/2) < 22) {
+      st.conns.splice(i, 1); setStatus('Conexión borrada'); return;
+    }
+  }
+  // Element
+  const e = elemNear(wx, wy, ELEM_HIT);
+  if (e) {
+    st.conns = st.conns.filter(c => c.fromId!==e.id && c.toId!==e.id);
+    st.elems = st.elems.filter(el => el.id!==e.id);
+    setStatus('Elemento borrado');
+  }
+}
+function setStatus(msg) { document.getElementById('status').textContent = msg; }
+
+// ── Render ─────────────────────────────────────────────────────────────────
+function draw() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.save();
+  ctx.translate(vx, vy);
+  ctx.scale(zoom, zoom);
+
+  // Grid background
+  ctx.fillStyle = '#141422';
+  ctx.fillRect(0, 0, GRID_COLS*GRID_UNIT, GRID_ROWS*GRID_UNIT);
+
+  drawGrid();
+  drawConnections();
+  drawElements();
+  drawPorts();
+  if (mode==='place' || (armType && mode==='idle')) drawGhost();
+  if (mode==='connect' && connFrom) drawRubberBand();
+
+  ctx.restore();
+}
+
+function drawGrid() {
+  const lw = 1/zoom;
+  ctx.strokeStyle = 'rgba(70,70,130,0.45)';
+  ctx.lineWidth = lw;
+  for (let c=0; c<=GRID_COLS; c++) {
+    ctx.beginPath(); ctx.moveTo(c*GRID_UNIT,0); ctx.lineTo(c*GRID_UNIT,GRID_ROWS*GRID_UNIT); ctx.stroke();
+  }
+  for (let r=0; r<=GRID_ROWS; r++) {
+    ctx.beginPath(); ctx.moveTo(0,r*GRID_UNIT); ctx.lineTo(GRID_COLS*GRID_UNIT,r*GRID_UNIT); ctx.stroke();
+  }
+}
+
+function drawConnections() {
+  for (const c of st.conns) {
+    const ea = findElem(c.fromId), eb = findElem(c.toId);
+    if (!ea || !eb) continue;
+    const [ax, ay] = gw2w(ea.gx, ea.gy), [bx, by] = gw2w(eb.gx, eb.gy);
+    const pa = nearestPortToward(ea, bx, by);
+    const pb = nearestPortToward(eb, ax, ay);
+
+    ctx.beginPath(); ctx.moveTo(pa.wx, pa.wy); ctx.lineTo(pb.wx, pb.wy);
+    ctx.strokeStyle='rgba(215,165,25,0.9)'; ctx.lineWidth=2.5/zoom; ctx.stroke();
+
+    // Arrowhead
+    const ang = Math.atan2(pb.wy-pa.wy, pb.wx-pa.wx);
+    const tip = {x: pb.wx - Math.cos(ang)*20, y: pb.wy - Math.sin(ang)*20};
+    const pw = 6;
+    ctx.beginPath();
+    ctx.moveTo(tip.x+Math.cos(ang+Math.PI/2)*pw, tip.y+Math.sin(ang+Math.PI/2)*pw);
+    ctx.lineTo(pb.wx-Math.cos(ang)*24, pb.wy-Math.sin(ang)*24);
+    ctx.moveTo(tip.x+Math.cos(ang-Math.PI/2)*pw, tip.y+Math.sin(ang-Math.PI/2)*pw);
+    ctx.lineTo(pb.wx-Math.cos(ang)*24, pb.wy-Math.sin(ang)*24);
+    ctx.strokeStyle='rgba(215,165,25,0.9)'; ctx.lineWidth=2/zoom; ctx.stroke();
+
+    // Op circle at midpoint
+    const [mx2, my2] = [(pa.wx+pb.wx)/2, (pa.wy+pb.wy)/2];
+    ctx.beginPath(); ctx.arc(mx2, my2, 18, 0, Math.PI*2);
+    ctx.fillStyle='#170d00'; ctx.fill();
+    ctx.strokeStyle='rgba(225,175,20,0.95)'; ctx.lineWidth=2/zoom; ctx.stroke();
+    ctx.fillStyle='#fff'; ctx.font=`bold 20px sans-serif`;
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText(OP_SYM[c.op], mx2, my2+1);
+  }
+}
+
+function drawElements() {
+  for (const e of st.elems) {
+    const [ox, oy] = gw2w(e.gx, e.gy);
+    const isMoving = mode==='move' && e.id===moveId;
+    const img = imgs[e.type];
+
+    if (isMoving) {
+      // Dimmed at original
+      ctx.globalAlpha = 0.25;
+      _drawElemImg(img, ox, oy, e.type);
+      ctx.globalAlpha = 1;
+      // Live at cursor
+      ctx.globalAlpha = 0.88;
+      _drawElemImg(img, moveLx, moveLy, e.type);
+      ctx.globalAlpha = 1;
+      // Snap dot
+      const [sgx, sgy] = snapGxy(moveLx, moveLy);
+      const occ = elemAt(sgx, sgy);
+      ctx.beginPath(); ctx.arc(sgx*GRID_UNIT, sgy*GRID_UNIT, 10, 0, Math.PI*2);
+      ctx.fillStyle = occ && occ.id!==moveId ? 'rgba(255,60,60,0.5)' : 'rgba(255,240,50,0.5)';
+      ctx.fill();
+    } else {
+      _drawElemImg(img, ox, oy, e.type);
+    }
+  }
+}
+
+function _drawElemImg(img, cx, cy, type) {
+  if (img && img.complete && img.naturalWidth > 0) {
+    ctx.drawImage(img, cx-ELEM_HALF, cy-ELEM_HALF, ELEM_HALF*2, ELEM_HALF*2);
+  } else {
+    ctx.beginPath(); ctx.arc(cx, cy, 34, 0, Math.PI*2);
+    ctx.fillStyle='#334455'; ctx.fill();
+    ctx.fillStyle='#8af'; ctx.font='12px sans-serif';
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText(type, cx, cy);
+  }
+}
+
+function drawPorts() {
+  const [wmx, wmy] = s2w(mx, my);
+  for (const e of st.elems) {
+    const [ex, ey] = gw2w(e.gx, e.gy);
+    if (Math.hypot(wmx-ex, wmy-ey) > 70 && mode!=='connect') continue;
+    for (const p of getPorts(e)) {
+      const near = Math.hypot(wmx-p.wx, wmy-p.wy) <= PORT_HIT;
+      ctx.beginPath(); ctx.arc(p.wx, p.wy, 9, 0, Math.PI*2);
+      ctx.fillStyle = near ? 'rgba(255,230,50,0.95)' : 'rgba(190,145,20,0.5)';
+      ctx.fill();
+      ctx.strokeStyle = near ? 'rgba(255,255,255,0.55)' : 'rgba(80,60,0,0.4)';
+      ctx.lineWidth = 1.5/zoom; ctx.stroke();
+    }
+  }
+}
+
+function drawGhost() {
+  const [wx, wy] = s2w(mx, my);
+  const img = imgs[armType];
+  ctx.globalAlpha = 0.5;
+  _drawElemImg(img, wx, wy, armType);
+  ctx.globalAlpha = 1;
+  const [gx, gy] = snapGxy(wx, wy);
+  const occ = elemAt(gx, gy);
+  ctx.beginPath(); ctx.arc(gx*GRID_UNIT, gy*GRID_UNIT, 10, 0, Math.PI*2);
+  ctx.fillStyle = occ ? 'rgba(255,60,60,0.45)' : 'rgba(255,240,50,0.45)';
+  ctx.fill();
+}
+
+function drawRubberBand() {
+  const [wx, wy] = s2w(mx, my);
+  const p = connFrom.port;
+  ctx.beginPath(); ctx.moveTo(p.wx, p.wy); ctx.lineTo(wx, wy);
+  ctx.strokeStyle='rgba(225,205,45,0.85)'; ctx.lineWidth=2.5/zoom; ctx.stroke();
+  ctx.beginPath(); ctx.arc(p.wx, p.wy, 11, 0, Math.PI*2);
+  ctx.fillStyle='rgba(255,230,50,0.9)'; ctx.fill();
+  const tgt = elemNear(wx, wy, PORT_D+12);
+  if (tgt && tgt.id!==connFrom.id) {
+    const [tx, ty] = gw2w(tgt.gx, tgt.gy);
+    ctx.beginPath(); ctx.arc(tx, ty, PORT_D+6, 0, Math.PI*2);
+    ctx.strokeStyle='rgba(225,225,45,0.28)'; ctx.lineWidth=2/zoom; ctx.stroke();
+  }
+}
+
+// ── Input ──────────────────────────────────────────────────────────────────
+function cpos(e) {
+  const r = canvas.getBoundingClientRect();
+  return [e.clientX - r.left, e.clientY - r.top];
+}
+
+canvas.addEventListener('contextmenu', e => e.preventDefault());
+
+canvas.addEventListener('mousedown', e => {
+  e.preventDefault();
+  [mx, my] = cpos(e);
+  const [wx, wy] = s2w(mx, my);
+
+  if (e.button === 2) { deleteAt(wx, wy); draw(); return; }
+  if (e.button !== 0) return;
+
+  // Place if armed
+  if (armType) {
+    const [gx, gy] = snapGxy(wx, wy);
+    placeElem(armType, gx, gy);
+    draw(); return;
+  }
+
+  // Port → connect
+  const ph = portAt(wx, wy);
+  if (ph) {
+    mode='connect'; connFrom={id: ph.elem.id, port: ph.port};
+    setStatus('Conectando… suelta sobre otro elemento'); return;
+  }
+
+  // Element → move
+  const el = elemNear(wx, wy, ELEM_HIT);
+  if (el) {
+    mode='move'; moveId=el.id; [moveLx, moveLy]=gw2w(el.gx, el.gy);
+    setStatus('Moviendo…'); return;
+  }
+
+  // Background → pan
+  mode='pan'; panX0=e.clientX; panY0=e.clientY; panVx0=vx; panVy0=vy;
+});
+
+document.addEventListener('mousemove', e => {
+  [mx, my] = cpos(e);
+  const [wx, wy] = s2w(mx, my);
+
+  if (mode==='pan') { vx=panVx0+(e.clientX-panX0); vy=panVy0+(e.clientY-panY0); }
+  if (mode==='move') { [moveLx, moveLy] = [wx, wy]; }
+
+  // Cursor feedback
+  if (mode==='pan' || mode==='move') canvas.style.cursor='grabbing';
+  else if (mode==='connect') canvas.style.cursor='crosshair';
+  else if (armType) canvas.style.cursor='cell';
+  else if (portAt(wx, wy)) canvas.style.cursor='crosshair';
+  else if (elemNear(wx, wy, ELEM_HIT)) canvas.style.cursor='move';
+  else canvas.style.cursor='default';
+
+  draw();
+});
+
+document.addEventListener('mouseup', e => {
+  if (e.button !== 0) return;
+  [mx, my] = cpos(e);
+  const [wx, wy] = s2w(mx, my);
+
+  if (mode==='place') {
+    // Drag from palette: place if released over canvas
+    if (e.target === canvas) {
+      const [gx, gy] = snapGxy(wx, wy);
+      placeElem(armType, gx, gy);
+    }
+    mode='idle';
+  }
+  else if (mode==='move') {
+    const el = findElem(moveId);
+    if (el) {
+      const [gx, gy] = snapGxy(wx, wy);
+      const occ = elemAt(gx, gy);
+      if (!occ || occ.id===moveId) { el.gx=gx; el.gy=gy; setStatus(`Movido a (${gx},${gy})`); }
+      else setStatus('Celda ocupada — sin cambio');
+    }
+    mode='idle'; moveId=null;
+  }
+  else if (mode==='connect') {
+    const tgt = elemNear(wx, wy, PORT_D+12);
+    if (tgt && tgt.id!==connFrom.id) connectElems(connFrom.id, tgt.id);
+    mode='idle'; connFrom=null;
+  }
+  else if (mode==='pan') mode='idle';
+
+  draw();
+});
+
+canvas.addEventListener('wheel', e => {
+  e.preventDefault();
+  const [sx, sy] = cpos(e);
+  const f = e.deltaY < 0 ? 1.12 : 0.90;
+  const nz = Math.max(0.18, Math.min(4.5, zoom*f));
+  vx = sx - (sx-vx)*(nz/zoom);
+  vy = sy - (sy-vy)*(nz/zoom);
+  zoom = nz;
+  draw();
+}, {passive:false});
+
+document.addEventListener('keydown', e => {
+  if (e.key==='Escape') {
+    armType=null; mode='idle'; connFrom=null;
+    document.querySelectorAll('.pal-item').forEach(i=>i.classList.remove('armed'));
+    setStatus('Listo');
+    draw();
+  }
+  if ((e.key==='Delete'||e.key==='Backspace') && e.target===document.body) {
+    const [wx, wy] = s2w(mx, my);
+    deleteAt(wx, wy); draw();
+  }
+});
+
+// ── Sidebar UI ─────────────────────────────────────────────────────────────
+// Palette click → arm/disarm
+document.querySelectorAll('.pal-item').forEach(item => {
+  item.addEventListener('click', () => {
+    const type = item.dataset.type;
+    if (armType===type) {
+      armType=null; item.classList.remove('armed'); setStatus('Listo');
+    } else {
+      document.querySelectorAll('.pal-item').forEach(i=>i.classList.remove('armed'));
+      armType=type; item.classList.add('armed');
+      setStatus(`Modo colocar: ${type}. Clic en el grid o arrastra.`);
+    }
+  });
+});
+
+// Palette mousedown → start drag-place
+document.querySelectorAll('.pal-item').forEach(item => {
+  item.addEventListener('mousedown', e => {
+    if (e.button!==0) return;
+    const type=item.dataset.type;
+    document.querySelectorAll('.pal-item').forEach(i=>i.classList.remove('armed'));
+    item.classList.add('armed');
+    armType=type; mode='place';
+  });
+});
+
+// Op selector
+document.querySelectorAll('.op-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.op-btn').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    st.selOp=btn.dataset.op;
+  });
+});
+
+// Dice UI
+function buildDice() {
+  const c = document.getElementById('dice-ui');
+  c.innerHTML='';
+  for (const color of DICE_COLORS) {
+    const row=document.createElement('div'); row.className='dice-row';
+    row.innerHTML=`
+      <div class="d-swatch" style="background:${DICE_CSS[color]}"></div>
+      <span class="d-label">${color.charAt(0).toUpperCase()+color.slice(1,4)}.</span>
+      <button class="d-btn" data-c="${color}" data-d="-1">−</button>
+      <span class="d-count" id="dc-${color}">${st.dice[color]}</span>
+      <button class="d-btn" data-c="${color}" data-d="1">+</button>`;
+    c.appendChild(row);
+  }
+  c.querySelectorAll('.d-btn').forEach(b=>b.addEventListener('click',()=>{
+    st.dice[b.dataset.c]=Math.max(0,st.dice[b.dataset.c]+parseInt(b.dataset.d));
+    document.getElementById(`dc-${b.dataset.c}`).textContent=st.dice[b.dataset.c];
+  }));
+}
+buildDice();
+
+// Save
+document.getElementById('btn-save').addEventListener('click', ()=>{
+  const data={
+    dice:{...st.dice}, grid_unit:GRID_UNIT,
+    elements: st.elems.map(e=>({id:e.id,type:e.type,gx:e.gx,gy:e.gy})),
+    operations: st.conns.map(c=>({from:c.fromId,to:c.toId,type:c.op})),
+  };
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:'application/json'}));
+  a.download='level.json'; a.click();
+  setStatus('Guardado: level.json');
+});
+
+// Load
+document.getElementById('btn-load').addEventListener('click',()=>document.getElementById('file-in').click());
+document.getElementById('file-in').addEventListener('change', e=>{
+  const f=e.target.files[0]; if(!f) return;
+  const r=new FileReader();
+  r.onload=ev=>{
+    try {
+      const data=JSON.parse(ev.target.result);
+      st.elems=[]; st.conns=[]; st.nextId=0;
+      armType=null; document.querySelectorAll('.pal-item').forEach(i=>i.classList.remove('armed'));
+      if(data.dice) for(const c of DICE_COLORS) if(data.dice[c]!==undefined){
+        st.dice[c]=data.dice[c];
+        document.getElementById(`dc-${c}`).textContent=st.dice[c];
+      }
+      const map={};
+      for(const el of (data.elements||[])){
+        const nid=st.nextId++; map[el.id]=nid;
+        st.elems.push({id:nid,type:el.type,gx:el.gx,gy:el.gy});
+      }
+      for(const op of (data.operations||[])){
+        const fid=map[op.from],tid=map[op.to];
+        if(fid===undefined||tid===undefined) continue;
+        st.conns.push({fromId:fid,toId:tid,op:op.type});
+      }
+      setStatus(`Cargado: ${st.elems.length} elementos, ${st.conns.length} operaciones`);
+      draw();
+    } catch(err){ setStatus('Error JSON: '+err.message); }
+  };
+  r.readAsText(f); e.target.value='';
+});
+
+// Clear
+document.getElementById('btn-clear').addEventListener('click',()=>{
+  if(!confirm('¿Limpiar el nivel?')) return;
+  st.elems=[]; st.conns=[]; st.nextId=0;
+  armType=null; mode='idle';
+  document.querySelectorAll('.pal-item').forEach(i=>i.classList.remove('armed'));
+  setStatus('Limpiado'); draw();
+});
+
+// ── Init ───────────────────────────────────────────────────────────────────
+window.addEventListener('resize',()=>{ resize(); draw(); });
+resize();
+
+// Center grid in view
+zoom = Math.min(canvas.width*0.88/(GRID_COLS*GRID_UNIT), canvas.height*0.88/(GRID_ROWS*GRID_UNIT));
+vx   = (canvas.width  - GRID_COLS*GRID_UNIT*zoom) / 2;
+vy   = (canvas.height - GRID_ROWS*GRID_UNIT*zoom) / 2;
+
+draw();
+</script>
+</body>
+</html>
