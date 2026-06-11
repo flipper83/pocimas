@@ -47,6 +47,8 @@ func _ready() -> void:
 	_setup_overlay()
 	_setup_volatility()
 	if _level_data.is_empty():
+		_level_data = LevelLoader.load_from_file("res://assets/levels/level.json")
+	if _level_data.is_empty():
 		_setup_elements()
 		_setup_dice()
 	else:
