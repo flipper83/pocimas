@@ -4,10 +4,10 @@ const ELEMENT_SCENE    := preload("res://scenes/element.tscn")
 const VOLATILITY_SCENE := preload("res://scenes/volatility.tscn")
 
 const _ETEX: Dictionary = {
-	"fire":  preload("res://assets/fuego.png")   as Texture2D,
-	"water": preload("res://assets/agua.png")    as Texture2D,
-	"salt":  preload("res://assets/sal.png")     as Texture2D,
-	"grass": preload("res://assets/hierba.png")  as Texture2D,
+	"fire":  preload("res://assets/fuego.png"),
+	"water": preload("res://assets/agua.png"),
+	"salt":  preload("res://assets/sal.png"),
+	"grass": preload("res://assets/hierba.png"),
 }
 const _VOL_TEX: Texture2D = preload("res://assets/volatility.png")
 
@@ -286,7 +286,7 @@ func _draw_sidebar() -> void:
 		var armed := _mode == _Mode.PLACE and _place_type == type
 		draw_rect(r, Color(0.25, 0.22, 0.08) if armed else (Color(0.22, 0.22, 0.4) if hov else Color(0.13, 0.13, 0.28)))
 		draw_rect(r, Color(1.0, 0.85, 0.2) if armed else Color(0.4, 0.4, 0.7), false, 1.5)
-		var tex: Texture2D = _VOL_TEX if type == "vol" else _ETEX.get(type) as Texture2D
+		var tex: Texture2D = _VOL_TEX if type == "vol" else (_ETEX.get(type) as Texture2D)
 		if tex:
 			var pad := Vector2(10, 8); var tsz := r.size - pad * 2 - Vector2(0, 14)
 			draw_texture_rect(tex, Rect2(r.position + pad, tsz), false)
@@ -386,7 +386,7 @@ func _draw_ports() -> void:
 
 func _draw_ghost() -> void:
 	if _mode != _Mode.PLACE or _mouse.x <= SIDEBAR_W: return
-	var tex: Texture2D = _VOL_TEX if _place_type == "vol" else _ETEX.get(_place_type) as Texture2D
+	var tex: Texture2D = _VOL_TEX if _place_type == "vol" else (_ETEX.get(_place_type) as Texture2D)
 	if tex:
 		var sz := Vector2(76, 68)
 		draw_texture_rect(tex, Rect2(_mouse - sz * 0.5, sz), false, Color(1, 1, 1, 0.5))
