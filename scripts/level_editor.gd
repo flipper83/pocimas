@@ -46,6 +46,8 @@ const _BTN_CLEAR := Rect2(8, 576, 90,  40)
 const _BTN_DEL   := Rect2(108, 576, 90, 40)
 
 var _font: Font
+var _sw: float = 1280.0
+var _sh: float = 820.0
 var _origin: Vector2
 
 var _elems: Array = []  # {id, type, gx, gy, node: Node2D}
@@ -67,7 +69,12 @@ var _status: String = "Listo  |  Clic der: borrar"
 func _ready() -> void:
 	_font = ThemeDB.fallback_font
 	if OS.get_name() in ["Windows", "macOS", "Linux"]:
+		# Disable portrait canvas scaling so the editor runs at native window size
+		get_tree().root.content_scale_mode = Window.CONTENT_SCALE_MODE_DISABLED
 		DisplayServer.window_set_size(Vector2i(1280, 820))
+	var r := get_viewport().get_visible_rect()
+	_sw = maxf(r.size.x, 1280.0)
+	_sh = maxf(r.size.y, 820.0)
 	_origin = Vector2(SIDEBAR_W + 14.0, 12.0)
 
 func _process(_dt: float) -> void:
@@ -275,8 +282,8 @@ func _draw() -> void:
 	_draw_rubber_band()
 
 func _draw_sidebar() -> void:
-	draw_rect(Rect2(0, 0, SIDEBAR_W, 820), Color(0.08, 0.08, 0.18))
-	draw_line(Vector2(SIDEBAR_W, 0), Vector2(SIDEBAR_W, 820), Color(0.3, 0.3, 0.6), 2.0)
+	draw_rect(Rect2(0, 0, SIDEBAR_W, _sh), Color(0.08, 0.08, 0.18))
+	draw_line(Vector2(SIDEBAR_W, 0), Vector2(SIDEBAR_W, _sh), Color(0.3, 0.3, 0.6), 2.0)
 
 	draw_string(_font, Vector2(12, 28), "EDITOR", HORIZONTAL_ALIGNMENT_LEFT, -1, 22, Color.WHITE)
 	_dsep(60, "Elementos")
@@ -322,10 +329,10 @@ func _draw_sidebar() -> void:
 	_dbtn(_BTN_CLEAR, "Limpiar")
 	_dbtn(_BTN_DEL,   "Del última op")
 
-	draw_string(_font, Vector2(8, 628), _status,
+	draw_string(_font, Vector2(8, _sh - 40), _status,
 		HORIZONTAL_ALIGNMENT_LEFT, SIDEBAR_W - 10, 13, Color(0.7, 1.0, 0.7))
 	var mode_lbl := ["Listo", "Colocar  (suelta en grid)", "Moviendo…", "Conectando…"]
-	draw_string(_font, Vector2(8, 648), mode_lbl[_mode],
+	draw_string(_font, Vector2(8, _sh - 20), "Modo: " + mode_lbl[_mode],
 		HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color(0.8, 0.8, 0.4))
 
 func _dsep(y: float, label: String) -> void:
