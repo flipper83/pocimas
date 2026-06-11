@@ -7,6 +7,7 @@ const OPERATION_SCENE := preload("res://scenes/operation.tscn")
 const VOLATILITY_SCENE := preload("res://scenes/volatility.tscn")
 
 const ELEMENT_TYPES: Array = ["fire", "water", "salt", "grass"]
+const LEVEL_DISPLAY_SCALE := 1.15
 const OP_TYPES: Array = ["gt", "lt", "eq", "ne"]
 const DICE_BOTTOM_MARGIN := 80.0
 
@@ -46,6 +47,8 @@ func _ready() -> void:
 	_setup_background()
 	_setup_overlay()
 	_setup_volatility()
+	if _level_data.is_empty():
+		_level_data = LevelLoader.load_from_file("res://assets/levels/level.json")
 	if _level_data.is_empty():
 		_setup_elements()
 		_setup_dice()
@@ -112,11 +115,11 @@ func _setup_dice() -> void:
 		die.animate_appear(i * 0.08)
 		_dice.append(die)
 
-func _grid_to_screen(gx: int, gy: int, grid_unit: int, origin: Vector2) -> Vector2:
+func _grid_to_screen(gx: int, gy: int, grid_unit: float, origin: Vector2) -> Vector2:
 	return origin + Vector2(gx * grid_unit, gy * grid_unit)
 
 func _setup_elements_from_level() -> void:
-	var grid_unit: int = _level_data.get("grid_unit", 110)
+	var grid_unit: float = float(_level_data.get("grid_unit", 110)) * LEVEL_DISPLAY_SCALE
 	var elems_data: Array = _level_data.get("elements", [])
 	var ops_data: Array = _level_data.get("operations", [])
 	var vol_data: Dictionary = _level_data.get("volatility", {})
@@ -157,7 +160,7 @@ func _setup_elements_from_level() -> void:
 		add_child(elem)
 		elem.setup(type, pos)
 		_elements.append(elem)
-		elem_by_id[e.get("id", _elements.size() - 1)] = _elements.size() - 1
+		elem_by_id[int(e.get("id", _elements.size() - 1))] = _elements.size() - 1
 
 	# Operations
 	for o: Dictionary in ops_data:
@@ -171,6 +174,7 @@ func _setup_elements_from_level() -> void:
 		var pos_b: Vector2 = (_elements[idx_b] as ElementNode).position
 		var op: OperationNode = OPERATION_SCENE.instantiate()
 		add_child(op)
+		op.z_index = 1
 		op.setup_between(o.get("type", "gt"), pos_a, pos_b, idx_a, idx_b)
 		_operations.append(op)
 
@@ -210,7 +214,7 @@ func _setup_reroll_button() -> void:
 	style_hover.bg_color = Color(0.25, 0.25, 0.5, 0.95)
 	_reroll_btn.add_theme_stylebox_override("hover", style_hover)
 	_reroll_btn.size = Vector2(240, 64)
-	_reroll_btn.position = Vector2((_screen_w - 240) * 0.5, _screen_h * 0.68)
+	_reroll_btn.position = Vector2((_screen_w - 240) * 0.5, _screen_h * 0.78)
 	_reroll_btn.pressed.connect(_on_reroll_pressed)
 	add_child(_reroll_btn)
 

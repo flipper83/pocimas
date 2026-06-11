@@ -31,6 +31,7 @@ func setup_between(p_type: String, pos_a: Vector2, pos_b: Vector2, idx_a: int, i
 	rotation = dir.angle()
 	_sprite.scale = Vector2(SPRITE_SCALE, SPRITE_SCALE)
 	_label.text = SYMBOLS[op_type]
+	_label.pivot_offset = Vector2(30.0, 30.0)
 	_label.rotation = -rotation
 
 func check(left_val: int, right_val: int) -> bool:
