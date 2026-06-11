@@ -2,7 +2,6 @@ extends Node2D
 
 const ELEMENT_SCENE    := preload("res://scenes/element.tscn")
 const VOLATILITY_SCENE := preload("res://scenes/volatility.tscn")
-
 const _ETEX: Dictionary = {
 	"fire":  preload("res://assets/fuego.png"),
 	"water": preload("res://assets/agua.png"),
@@ -11,43 +10,48 @@ const _ETEX: Dictionary = {
 }
 const _VOL_TEX: Texture2D = preload("res://assets/volatility.png")
 
-const SIDEBAR_W  := 210.0
-const GRID_UNIT  := 110
-const GRID_COLS  := 9
-const GRID_ROWS  := 7
-const PORT_R     := 9.0
-const PORT_D     := 52.0
+const TOOLBAR_H := 160.0
+const GRID_UNIT := 100
+const GRID_COLS := 6
+const GRID_ROWS := 11
+const PORT_R    := 9.0
+const PORT_D    := 50.0
 
-const ELEM_TYPES: Array[String] = ["fire", "water", "salt", "grass"]
-const OP_TYPES: Array[String]   = ["gt", "lt", "eq", "ne"]
-const OP_SYM: Dictionary        = {"gt": ">", "lt": "<", "eq": "=", "ne": "≠"}
+const ELEM_TYPES: Array[String]  = ["fire", "water", "salt", "grass"]
+const OP_TYPES:   Array[String]  = ["gt", "lt", "eq", "ne"]
+const OP_SYM:     Dictionary     = {"gt": ">", "lt": "<", "eq": "=", "ne": "≠"}
 const DICE_COLORS: Array[String] = ["red", "white", "green", "blue"]
-const DICE_COL: Dictionary = {
+const DICE_COL:   Dictionary     = {
 	"red": Color(0.9, 0.2, 0.2), "white": Color(0.85, 0.85, 0.85),
 	"green": Color(0.2, 0.75, 0.2), "blue": Color(0.2, 0.5, 1.0),
 }
 
+# ── Toolbar row 1 (y=4..76): element palette + op selector ──
 const _PAL: Dictionary = {
-	"fire":  Rect2(10,  72, 85, 72),
-	"water": Rect2(110, 72, 85, 72),
-	"salt":  Rect2(10, 154, 85, 72),
-	"grass": Rect2(110,154, 85, 72),
-	"vol":   Rect2(60, 236, 85, 72),
+	"fire":  Rect2(2,   4, 60, 72),
+	"water": Rect2(66,  4, 60, 72),
+	"salt":  Rect2(130, 4, 60, 72),
+	"grass": Rect2(194, 4, 60, 72),
+	"vol":   Rect2(258, 4, 60, 72),
 }
 const _OPR: Dictionary = {
-	"gt": Rect2(8,   345, 42, 42),
-	"lt": Rect2(56,  345, 42, 42),
-	"eq": Rect2(104, 345, 42, 42),
-	"ne": Rect2(152, 345, 42, 42),
+	"gt": Rect2(332, 18, 42, 42),
+	"lt": Rect2(378, 18, 42, 42),
+	"eq": Rect2(424, 18, 42, 42),
+	"ne": Rect2(470, 18, 42, 42),
 }
-const _BTN_SAVE  := Rect2(8, 480, 190, 40)
-const _BTN_LOAD  := Rect2(8, 528, 190, 40)
-const _BTN_CLEAR := Rect2(8, 576, 90,  40)
-const _BTN_DEL   := Rect2(108, 576, 90, 40)
+
+# ── Toolbar row 2 (y=82..150): dice + actions ──
+# Dice: 4 groups at x = i*100+2, each has [-] count [+]  (width 98px)
+# Action buttons start at x=408
+const _BTN_SAVE  := Rect2(412, 82,  76, 32)
+const _BTN_LOAD  := Rect2(492, 82,  76, 32)
+const _BTN_CLEAR := Rect2(572, 82,  72, 32)
+const _BTN_DEL   := Rect2(648, 82, 68, 32)
 
 var _font: Font
-var _sw: float = 1280.0
-var _sh: float = 820.0
+var _sw: float
+var _sh: float
 var _origin: Vector2
 
 var _elems: Array = []  # {id, type, gx, gy, node: Node2D}
@@ -64,18 +68,15 @@ var _move_off: Vector2
 var _conn_from_id: int = -1
 var _conn_from_port: Vector2
 var _mouse: Vector2
-var _status: String = "Listo  |  Clic der: borrar"
+var _status: String = "Listo"
 
 func _ready() -> void:
 	_font = ThemeDB.fallback_font
-	if OS.get_name() in ["Windows", "macOS", "Linux"]:
-		# Disable portrait canvas scaling so the editor runs at native window size
-		get_tree().root.content_scale_mode = Window.CONTENT_SCALE_MODE_DISABLED
-		DisplayServer.window_set_size(Vector2i(1280, 820))
 	var r := get_viewport().get_visible_rect()
-	_sw = maxf(r.size.x, 1280.0)
-	_sh = maxf(r.size.y, 820.0)
-	_origin = Vector2(SIDEBAR_W + 14.0, 12.0)
+	_sw = r.size.x
+	_sh = r.size.y
+	var grid_w := GRID_COLS * GRID_UNIT
+	_origin = Vector2((_sw - grid_w) * 0.5, TOOLBAR_H + 2.0)
 
 func _process(_dt: float) -> void:
 	queue_redraw()
@@ -120,8 +121,7 @@ func _nearest_port_toward(e: Dictionary, target: Vector2) -> Vector2:
 	var best_d := INF
 	for pt: Vector2 in _get_ports(e):
 		var d := target.distance_to(pt)
-		if d < best_d:
-			best_d = d; best = pt
+		if d < best_d: best_d = d; best = pt
 	return best
 
 func _port_at(pos: Vector2) -> Dictionary:
@@ -189,9 +189,7 @@ func _input(event: InputEvent) -> void:
 		return
 	if not (event is InputEventMouseButton): return
 	var mb := event as InputEventMouseButton
-	pos = mb.position
-	_mouse = pos
-
+	pos = mb.position; _mouse = pos
 	if mb.button_index == MOUSE_BUTTON_RIGHT and mb.pressed:
 		_handle_rclick(pos); return
 	if mb.button_index != MOUSE_BUTTON_LEFT: return
@@ -210,24 +208,21 @@ func _handle_rclick(pos: Vector2) -> void:
 	if not entry.is_empty(): _delete_elem(entry.id)
 
 func _handle_press(pos: Vector2) -> void:
-	if pos.x < SIDEBAR_W:
-		_handle_sidebar_press(pos); return
-
-	# Canvas: port first, then move
+	if pos.y < TOOLBAR_H:
+		_handle_toolbar_press(pos); return
 	var ph := _port_at(pos)
 	if not ph.is_empty():
 		_mode = _Mode.CONNECT
 		_conn_from_id   = (ph.elem as Dictionary).id
 		_conn_from_port = ph.port as Vector2
 		_status = "Conectando…"; return
-
 	var entry := _elem_near(pos, 48.0)
 	if not entry.is_empty():
 		_mode = _Mode.MOVE
 		_move_id  = entry.id
 		_move_off = (entry.node as Node2D).position - pos
 
-func _handle_sidebar_press(pos: Vector2) -> void:
+func _handle_toolbar_press(pos: Vector2) -> void:
 	for type: String in _PAL:
 		if (_PAL[type] as Rect2).has_point(pos):
 			_mode = _Mode.PLACE; _place_type = type
@@ -236,21 +231,20 @@ func _handle_sidebar_press(pos: Vector2) -> void:
 		if (_OPR[op] as Rect2).has_point(pos):
 			_sel_op = op; return
 	for i in DICE_COLORS.size():
-		var y := 400.0 + i * 34.0
+		var x := float(i * 100 + 2)
 		var color := DICE_COLORS[i]
-		if Rect2(52, y, 26, 26).has_point(pos): _dice[color] = maxi(0, _dice[color] - 1); return
-		if Rect2(148, y, 26, 26).has_point(pos): _dice[color] += 1; return
+		if Rect2(x + 26, 82, 24, 26).has_point(pos): _dice[color] = maxi(0, _dice[color] - 1); return
+		if Rect2(x + 74, 82, 24, 26).has_point(pos): _dice[color] += 1; return
 	if _BTN_SAVE.has_point(pos):  _on_save(); return
 	if _BTN_LOAD.has_point(pos):  _on_load(); return
 	if _BTN_CLEAR.has_point(pos): _on_clear(); return
 	if _BTN_DEL.has_point(pos):
-		if not _conns.is_empty():
-			_conns.pop_back(); _status = "Última op borrada"
+		if not _conns.is_empty(): _conns.pop_back(); _status = "Última op borrada"
 
 func _handle_release(pos: Vector2) -> void:
 	match _mode:
 		_Mode.PLACE:
-			if pos.x > SIDEBAR_W:
+			if pos.y > TOOLBAR_H:
 				var g := _snap(pos); _place(_place_type, g.x, g.y)
 			_mode = _Mode.IDLE
 		_Mode.MOVE:
@@ -274,82 +268,89 @@ func _handle_release(pos: Vector2) -> void:
 # ── Draw ───────────────────────────────────────────────────────────────────────
 
 func _draw() -> void:
-	_draw_sidebar()
+	_draw_toolbar()
 	_draw_grid()
 	_draw_connections()
 	_draw_ports()
 	_draw_ghost()
 	_draw_rubber_band()
+	_draw_status()
 
-func _draw_sidebar() -> void:
-	draw_rect(Rect2(0, 0, SIDEBAR_W, _sh), Color(0.08, 0.08, 0.18))
-	draw_line(Vector2(SIDEBAR_W, 0), Vector2(SIDEBAR_W, _sh), Color(0.3, 0.3, 0.6), 2.0)
+func _draw_toolbar() -> void:
+	draw_rect(Rect2(0, 0, _sw, TOOLBAR_H), Color(0.08, 0.08, 0.18))
+	draw_line(Vector2(0, TOOLBAR_H), Vector2(_sw, TOOLBAR_H), Color(0.35, 0.35, 0.65, 0.9), 2.0)
 
-	draw_string(_font, Vector2(12, 28), "EDITOR", HORIZONTAL_ALIGNMENT_LEFT, -1, 22, Color.WHITE)
-	_dsep(60, "Elementos")
+	# Row 1 label
+	draw_string(_font, Vector2(2, 16), "Elementos:", HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color(0.55, 0.55, 0.85))
+	# Element tiles
 	for type: String in _PAL:
 		var r: Rect2 = _PAL[type]
-		var hov := r.has_point(_mouse)
+		var hov  := r.has_point(_mouse)
 		var armed := _mode == _Mode.PLACE and _place_type == type
-		draw_rect(r, Color(0.25, 0.22, 0.08) if armed else (Color(0.22, 0.22, 0.4) if hov else Color(0.13, 0.13, 0.28)))
+		draw_rect(r, Color(0.28, 0.22, 0.06) if armed else (Color(0.22, 0.22, 0.42) if hov else Color(0.12, 0.12, 0.26)))
 		draw_rect(r, Color(1.0, 0.85, 0.2) if armed else Color(0.4, 0.4, 0.7), false, 1.5)
 		var tex: Texture2D = _VOL_TEX if type == "vol" else (_ETEX.get(type) as Texture2D)
 		if tex:
-			var pad := Vector2(10, 8); var tsz := r.size - pad * 2 - Vector2(0, 14)
-			draw_texture_rect(tex, Rect2(r.position + pad, tsz), false)
-		var lbl := {"fire":"Fuego","water":"Agua","salt":"Sal","grass":"Hierba","vol":"Volatil."}
-		draw_string(_font, Vector2(r.get_center().x, r.end.y - 3),
-			lbl.get(type, type), HORIZONTAL_ALIGNMENT_CENTER, r.size.x, 13, Color.WHITE)
+			draw_texture_rect(tex, Rect2(r.position + Vector2(6, 5), r.size - Vector2(12, 20)), false)
+		var names := {"fire":"Fuego","water":"Agua","salt":"Sal","grass":"Hierba","vol":"Volatil."}
+		draw_string(_font, Vector2(r.get_center().x, r.end.y - 2),
+			names.get(type, type), HORIZONTAL_ALIGNMENT_CENTER, r.size.x, 12, Color.WHITE)
 
-	_dsep(333, "Operador activo")
+	# Op label + buttons
+	draw_string(_font, Vector2(330, 16), "Op:", HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color(0.55, 0.55, 0.85))
 	for op: String in _OPR:
 		var r: Rect2 = _OPR[op]
 		var sel := op == _sel_op
-		draw_rect(r, Color(0.35, 0.2, 0.05) if sel else Color(0.13, 0.13, 0.28))
+		draw_rect(r, Color(0.38, 0.22, 0.04) if sel else Color(0.12, 0.12, 0.26))
 		draw_rect(r, Color(1.0, 0.7, 0.2) if sel else Color(0.4, 0.4, 0.7), false, 2.0)
-		draw_string(_font, r.get_center() + Vector2(0, 9), OP_SYM[op],
-			HORIZONTAL_ALIGNMENT_CENTER, -1, 22, Color.WHITE)
+		draw_string(_font, r.get_center() + Vector2(0, 9),
+			OP_SYM[op], HORIZONTAL_ALIGNMENT_CENTER, -1, 22, Color.WHITE)
 
-	_dsep(393, "Dados")
+	# Row 2 separator
+	draw_line(Vector2(0, 78), Vector2(_sw, 78), Color(0.2, 0.2, 0.4, 0.5), 1.0)
+
+	# Dice
 	for i in DICE_COLORS.size():
-		var y := 400.0 + i * 34.0
+		var x := float(i * 100 + 2)
 		var color := DICE_COLORS[i]
 		var dc: Color = DICE_COL[color]
-		draw_rect(Rect2(8, y, 40, 26), dc.darkened(0.4))
-		draw_string(_font, Vector2(28, y + 19), color.substr(0, 1).to_upper(),
-			HORIZONTAL_ALIGNMENT_CENTER, -1, 15, dc.lightened(0.3))
-		_dbtn(Rect2(52, y, 26, 26), "-")
-		draw_string(_font, Vector2(91, y + 19), str(_dice[color]),
-			HORIZONTAL_ALIGNMENT_CENTER, 50, 17, Color.WHITE)
-		_dbtn(Rect2(148, y, 26, 26), "+")
+		# Color label box
+		draw_rect(Rect2(x, 82, 22, 26), dc.darkened(0.35))
+		draw_string(_font, Vector2(x + 11, 100), color.substr(0, 1).to_upper(),
+			HORIZONTAL_ALIGNMENT_CENTER, -1, 14, dc.lightened(0.4))
+		# Minus
+		_dbtn_small(Rect2(x + 26, 82, 24, 26), "−")
+		# Count
+		draw_string(_font, Vector2(x + 62, 100), str(_dice[color]),
+			HORIZONTAL_ALIGNMENT_CENTER, -1, 16, Color.WHITE)
+		# Plus
+		_dbtn_small(Rect2(x + 74, 82, 24, 26), "+")
+		# Second row: count display label at y=114
+		draw_string(_font, Vector2(x + 11, 145), color.substr(0, 3),
+			HORIZONTAL_ALIGNMENT_CENTER, 80, 11, dc.lightened(0.2))
 
-	_dsep(472, "")
-	_dbtn(_BTN_SAVE,  "Guardar JSON")
-	_dbtn(_BTN_LOAD,  "Cargar JSON")
+	# Action buttons
+	_dbtn(_BTN_SAVE,  "Guardar")
+	_dbtn(_BTN_LOAD,  "Cargar")
 	_dbtn(_BTN_CLEAR, "Limpiar")
-	_dbtn(_BTN_DEL,   "Del última op")
-
-	draw_string(_font, Vector2(8, _sh - 40), _status,
-		HORIZONTAL_ALIGNMENT_LEFT, SIDEBAR_W - 10, 13, Color(0.7, 1.0, 0.7))
-	var mode_lbl := ["Listo", "Colocar  (suelta en grid)", "Moviendo…", "Conectando…"]
-	draw_string(_font, Vector2(8, _sh - 20), "Modo: " + mode_lbl[_mode],
-		HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color(0.8, 0.8, 0.4))
-
-func _dsep(y: float, label: String) -> void:
-	draw_line(Vector2(8, y), Vector2(SIDEBAR_W - 8, y), Color(0.3, 0.3, 0.55), 1.0)
-	if label != "":
-		draw_string(_font, Vector2(12, y + 14), label,
-			HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color(0.55, 0.55, 0.85))
+	_dbtn(_BTN_DEL,   "Del op")
 
 func _dbtn(r: Rect2, label: String) -> void:
 	var hov := r.has_point(_mouse)
-	draw_rect(r, Color(0.25, 0.15, 0.4) if hov else Color(0.15, 0.1, 0.25))
+	draw_rect(r, Color(0.28, 0.15, 0.42) if hov else Color(0.16, 0.1, 0.26))
 	draw_rect(r, Color(0.55, 0.35, 0.75), false, 1.5)
 	draw_string(_font, r.get_center() + Vector2(0, 6),
-		label, HORIZONTAL_ALIGNMENT_CENTER, r.size.x - 2, 14, Color.WHITE)
+		label, HORIZONTAL_ALIGNMENT_CENTER, r.size.x - 4, 14, Color.WHITE)
+
+func _dbtn_small(r: Rect2, label: String) -> void:
+	var hov := r.has_point(_mouse)
+	draw_rect(r, Color(0.25, 0.25, 0.45) if hov else Color(0.15, 0.15, 0.32))
+	draw_rect(r, Color(0.5, 0.5, 0.8), false, 1.0)
+	draw_string(_font, r.get_center() + Vector2(0, 6),
+		label, HORIZONTAL_ALIGNMENT_CENTER, -1, 16, Color.WHITE)
 
 func _draw_grid() -> void:
-	var gc := Color(0.22, 0.22, 0.45, 0.5)
+	var gc := Color(0.22, 0.22, 0.45, 0.45)
 	for c in GRID_COLS + 1:
 		var x := _origin.x + c * GRID_UNIT
 		draw_line(Vector2(x, _origin.y), Vector2(x, _origin.y + GRID_ROWS * GRID_UNIT), gc, 1.0)
@@ -368,16 +369,16 @@ func _draw_connections() -> void:
 		draw_line(port_a, port_b, Color(0.85, 0.65, 0.1, 0.9), 2.5)
 		_draw_arrowhead(port_a, port_b)
 		var mid := (port_a + port_b) * 0.5
-		draw_circle(mid, 18.0, Color(0.12, 0.08, 0.02))
+		draw_circle(mid, 18.0, Color(0.1, 0.07, 0.02))
 		draw_arc(mid, 18.0, 0.0, TAU, 24, Color(0.9, 0.7, 0.1), 2.0)
 		draw_string(_font, mid + Vector2(0, 8), OP_SYM[c.op],
 			HORIZONTAL_ALIGNMENT_CENTER, -1, 20, Color.WHITE)
 
 func _draw_arrowhead(from: Vector2, to: Vector2) -> void:
 	var dir := (to - from).normalized()
-	var tip := to - dir * 20.0
+	var tip  := to - dir * 20.0
 	var perp := Vector2(-dir.y, dir.x) * 6.0
-	var col := Color(0.85, 0.65, 0.1, 0.9)
+	var col  := Color(0.85, 0.65, 0.1, 0.9)
 	draw_line(tip + perp, to - dir * 24.0, col, 2.0)
 	draw_line(tip - perp, to - dir * 24.0, col, 2.0)
 
@@ -387,20 +388,20 @@ func _draw_ports() -> void:
 		if _mouse.distance_to(ep) > 70.0 and _mode != _Mode.CONNECT: continue
 		for pt: Vector2 in _get_ports(e):
 			var near := _mouse.distance_to(pt) <= PORT_R * 2.2
-			var col := Color(1.0, 0.9, 0.2) if near else Color(0.8, 0.65, 0.1, 0.6)
-			draw_circle(pt, PORT_R, col)
-			draw_arc(pt, PORT_R, 0.0, TAU, 16, Color(1, 1, 1, 0.5) if near else Color(0.3, 0.25, 0.0), 1.5)
+			draw_circle(pt, PORT_R, Color(1.0, 0.9, 0.2) if near else Color(0.75, 0.6, 0.1, 0.6))
+			draw_arc(pt, PORT_R, 0.0, TAU, 16,
+				Color(1, 1, 1, 0.5) if near else Color(0.3, 0.25, 0.0), 1.5)
 
 func _draw_ghost() -> void:
-	if _mode != _Mode.PLACE or _mouse.x <= SIDEBAR_W: return
+	if _mode != _Mode.PLACE or _mouse.y <= TOOLBAR_H: return
 	var tex: Texture2D = _VOL_TEX if _place_type == "vol" else (_ETEX.get(_place_type) as Texture2D)
 	if tex:
-		var sz := Vector2(76, 68)
+		var sz := Vector2(72, 65)
 		draw_texture_rect(tex, Rect2(_mouse - sz * 0.5, sz), false, Color(1, 1, 1, 0.5))
 	var g := _snap(_mouse)
 	var snapped := _gpos(g.x, g.y)
 	var occ := not _elem_at(g.x, g.y).is_empty()
-	draw_circle(snapped, 10.0, Color(1.0, 0.2, 0.2, 0.5) if occ else Color(1.0, 1.0, 0.2, 0.45))
+	draw_circle(snapped, 10.0, Color(1.0, 0.2, 0.2, 0.45) if occ else Color(1.0, 1.0, 0.2, 0.45))
 
 func _draw_rubber_band() -> void:
 	if _mode != _Mode.CONNECT: return
@@ -409,6 +410,13 @@ func _draw_rubber_band() -> void:
 	var target := _elem_near(_mouse, PORT_D + 12.0)
 	if not target.is_empty() and target.id != _conn_from_id:
 		draw_circle((target.node as Node2D).position, PORT_D + 6, Color(0.9, 0.9, 0.2, 0.25))
+
+func _draw_status() -> void:
+	var mode_lbl := ["", "Colocar → suelta en grid", "Moviendo…", "Conectando…"]
+	var txt := _status
+	if _mode != _Mode.IDLE: txt += "  ·  " + mode_lbl[_mode]
+	draw_string(_font, Vector2(4, _sh - 6), txt,
+		HORIZONTAL_ALIGNMENT_LEFT, _sw - 8, 13, Color(0.75, 1.0, 0.75))
 
 # ── JSON ───────────────────────────────────────────────────────────────────────
 
@@ -424,18 +432,16 @@ func _build_data() -> Dictionary:
 
 func _on_save() -> void:
 	if LevelLoader.save_to_file("user://level.json", _build_data()):
-		_status = "Guardado  →  user://level.json"
+		_status = "Guardado → user://level.json"
 		print("Saved: ", ProjectSettings.globalize_path("user://level.json"))
 	else:
 		_status = "Error al guardar"
 
 func _on_load() -> void:
 	var data := LevelLoader.load_from_file("user://level.json")
-	if data.is_empty():
-		_status = "No se encontró level.json"; return
+	if data.is_empty(): _status = "No se encontró level.json"; return
 	_on_clear()
-	if data.has("dice"):
-		_dice = (data.dice as Dictionary).duplicate()
+	if data.has("dice"): _dice = (data.dice as Dictionary).duplicate()
 	var old_to_new: Dictionary = {}
 	for e: Dictionary in data.get("elements", []):
 		var old_id: int = e.get("id", 0)
