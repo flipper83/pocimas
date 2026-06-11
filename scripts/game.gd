@@ -159,7 +159,7 @@ func _setup_elements_from_level() -> void:
 		add_child(elem)
 		elem.setup(type, pos)
 		_elements.append(elem)
-		elem_by_id[e.get("id", _elements.size() - 1)] = _elements.size() - 1
+		elem_by_id[int(e.get("id", _elements.size() - 1))] = _elements.size() - 1
 
 	# Operations
 	for o: Dictionary in ops_data:
@@ -173,6 +173,7 @@ func _setup_elements_from_level() -> void:
 		var pos_b: Vector2 = (_elements[idx_b] as ElementNode).position
 		var op: OperationNode = OPERATION_SCENE.instantiate()
 		add_child(op)
+		op.z_index = 1
 		op.setup_between(o.get("type", "gt"), pos_a, pos_b, idx_a, idx_b)
 		_operations.append(op)
 
@@ -212,7 +213,7 @@ func _setup_reroll_button() -> void:
 	style_hover.bg_color = Color(0.25, 0.25, 0.5, 0.95)
 	_reroll_btn.add_theme_stylebox_override("hover", style_hover)
 	_reroll_btn.size = Vector2(240, 64)
-	_reroll_btn.position = Vector2((_screen_w - 240) * 0.5, _screen_h * 0.68)
+	_reroll_btn.position = Vector2((_screen_w - 240) * 0.5, _screen_h * 0.78)
 	_reroll_btn.pressed.connect(_on_reroll_pressed)
 	add_child(_reroll_btn)
 
