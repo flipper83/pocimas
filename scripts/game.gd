@@ -7,6 +7,7 @@ const OPERATION_SCENE := preload("res://scenes/operation.tscn")
 const VOLATILITY_SCENE := preload("res://scenes/volatility.tscn")
 
 const ELEMENT_TYPES: Array = ["fire", "water", "salt", "grass"]
+const LEVEL_DISPLAY_SCALE := 1.15
 const OP_TYPES: Array = ["gt", "lt", "eq", "ne"]
 const DICE_BOTTOM_MARGIN := 80.0
 
@@ -114,11 +115,11 @@ func _setup_dice() -> void:
 		die.animate_appear(i * 0.08)
 		_dice.append(die)
 
-func _grid_to_screen(gx: int, gy: int, grid_unit: int, origin: Vector2) -> Vector2:
+func _grid_to_screen(gx: int, gy: int, grid_unit: float, origin: Vector2) -> Vector2:
 	return origin + Vector2(gx * grid_unit, gy * grid_unit)
 
 func _setup_elements_from_level() -> void:
-	var grid_unit: int = _level_data.get("grid_unit", 110)
+	var grid_unit: float = float(_level_data.get("grid_unit", 110)) * LEVEL_DISPLAY_SCALE
 	var elems_data: Array = _level_data.get("elements", [])
 	var ops_data: Array = _level_data.get("operations", [])
 	var vol_data: Dictionary = _level_data.get("volatility", {})
