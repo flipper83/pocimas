@@ -135,20 +135,22 @@ canvas { display: block; }
 
 <script>
 // ── Constants ──────────────────────────────────────────────────────────────
-const GRID_UNIT = 110;
-const GRID_COLS = 9;
-const GRID_ROWS = 9;
-const PORT_D    = 52;   // world-unit distance from element center to port
+const GRID_UNIT = 55;
+const GRID_COLS = 18;
+const GRID_ROWS = 18;
+const PORT_D    = 52;   // world-unit distance from element center to straight port
 const PORT_HIT  = 14;   // world-unit hit radius for ports
 const ELEM_HALF = 44;   // world-unit half-size of element sprite
 const ELEM_HIT  = 48;   // world-unit hit radius for element drag
+const OP_SIZE   = 44;   // render size of operator sprite in editor
 
 const OP_SYM = { gt: '>', lt: '<', eq: '=', ne: '≠' };
 const DICE_COLORS = ['red', 'white', 'green', 'blue'];
 const DICE_CSS = { red: '#d43', white: '#ccc', green: '#4b4', blue: '#46f' };
 const ASSETS = { fire:'../assets/fuego.png', water:'../assets/agua.png',
                  salt:'../assets/sal.png', grass:'../assets/hierba.png',
-                 vol:'../assets/volatility.png' };
+                 vol:'../assets/volatility.png',
+                 op:'../assets/operator.png' };
 
 // ── State ──────────────────────────────────────────────────────────────────
 const st = {
@@ -209,9 +211,16 @@ const elemNear = (wx, wy, r) => st.elems.find(e => {
 
 function getPorts(e) {
   const [wx, wy] = gw2w(e.gx, e.gy);
+  const d = PORT_D, c = ELEM_HALF;
   return [
-    {wx, wy: wy - PORT_D}, {wx: wx+PORT_D, wy},
-    {wx, wy: wy + PORT_D}, {wx: wx-PORT_D, wy},
+    {wx,       wy: wy-d  },  // N
+    {wx: wx+c, wy: wy-c  },  // NE (corner)
+    {wx: wx+d, wy        },  // E
+    {wx: wx+c, wy: wy+c  },  // SE
+    {wx,       wy: wy+d  },  // S
+    {wx: wx-c, wy: wy+c  },  // SW
+    {wx: wx-d, wy        },  // W
+    {wx: wx-c, wy: wy-c  },  // NW
   ];
 }
 function nearestPortToward(e, twx, twy) {
@@ -318,11 +327,20 @@ function drawConnections() {
     ctx.lineTo(pb.wx-Math.cos(ang)*24, pb.wy-Math.sin(ang)*24);
     ctx.strokeStyle='rgba(215,165,25,0.9)'; ctx.lineWidth=2/zoom; ctx.stroke();
 
-    // Op circle at midpoint
+    // Op sprite at midpoint
     const [mx2, my2] = [(pa.wx+pb.wx)/2, (pa.wy+pb.wy)/2];
-    ctx.beginPath(); ctx.arc(mx2, my2, 18, 0, Math.PI*2);
-    ctx.fillStyle='#170d00'; ctx.fill();
-    ctx.strokeStyle='rgba(225,175,20,0.95)'; ctx.lineWidth=2/zoom; ctx.stroke();
+    const hs = OP_SIZE / 2;
+    if (imgs.op && imgs.op.complete && imgs.op.naturalWidth > 0) {
+      ctx.save();
+      ctx.translate(mx2, my2);
+      ctx.rotate(ang);
+      ctx.drawImage(imgs.op, -hs, -hs, OP_SIZE, OP_SIZE);
+      ctx.restore();
+    } else {
+      ctx.beginPath(); ctx.arc(mx2, my2, hs, 0, Math.PI*2);
+      ctx.fillStyle='#170d00'; ctx.fill();
+      ctx.strokeStyle='rgba(225,175,20,0.95)'; ctx.lineWidth=2/zoom; ctx.stroke();
+    }
     ctx.fillStyle='#fff'; ctx.font=`bold 20px sans-serif`;
     ctx.textAlign='center'; ctx.textBaseline='middle';
     ctx.fillText(OP_SYM[c.op], mx2, my2+1);
@@ -372,7 +390,7 @@ function drawPorts() {
   const [wmx, wmy] = s2w(mx, my);
   for (const e of st.elems) {
     const [ex, ey] = gw2w(e.gx, e.gy);
-    if (Math.hypot(wmx-ex, wmy-ey) > 70 && mode!=='connect') continue;
+    if (Math.hypot(wmx-ex, wmy-ey) > 80 && mode!=='connect') continue;
     for (const p of getPorts(e)) {
       const near = Math.hypot(wmx-p.wx, wmy-p.wy) <= PORT_HIT;
       ctx.beginPath(); ctx.arc(p.wx, p.wy, 9, 0, Math.PI*2);
