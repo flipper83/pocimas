@@ -104,12 +104,14 @@ func _setup_elements() -> void:
 func _setup_dice() -> void:
 	var colors: Array = ["red", "red", "white", "green", "green", "blue", "blue"]
 	colors.shuffle()
-	var spacing := _screen_w / 7.0
+	var n := 7.0
+	var die_spacing := minf(90.0, _screen_w * 0.92 / n)
+	var start_x := (_screen_w - die_spacing * n) * 0.5 + die_spacing * 0.5
 	var dice_y := _screen_h - DICE_BOTTOM_MARGIN
 	for i in 7:
 		var die: DieNode = DIE_SCENE.instantiate()
 		add_child(die)
-		var pos := Vector2(spacing * 0.5 + spacing * i, dice_y)
+		var pos := Vector2(start_x + die_spacing * i, dice_y)
 		die.setup(colors[i], randi_range(1, 6), pos)
 		die.z_index = 1
 		die.animate_appear(i * 0.08)
@@ -185,12 +187,14 @@ func _setup_dice_from_level() -> void:
 		for _i in dice_counts[color]:
 			colors.append(color)
 	colors.shuffle()
-	var spacing := _screen_w / float(colors.size())
+	var n := float(colors.size())
+	var die_spacing := minf(90.0, _screen_w * 0.92 / n)
+	var start_x := (_screen_w - die_spacing * n) * 0.5 + die_spacing * 0.5
 	var dice_y := _screen_h - DICE_BOTTOM_MARGIN
 	for i in colors.size():
 		var die: DieNode = DIE_SCENE.instantiate()
 		add_child(die)
-		var pos := Vector2(spacing * 0.5 + spacing * i, dice_y)
+		var pos := Vector2(start_x + die_spacing * i, dice_y)
 		die.setup(colors[i], randi_range(1, 6), pos)
 		die.z_index = 1
 		die.animate_appear(i * 0.08)
