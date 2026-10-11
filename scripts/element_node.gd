@@ -1,7 +1,7 @@
 class_name ElementNode
 extends Node2D
 
-const SPRITE_SCALE := 0.35
+const SPRITE_SCALE := 0.42
 const TEXTURES: Dictionary = {
 	"fire": preload("res://assets/ingredients/fire.png"),
 	"water": preload("res://assets/ingredients/water.png"),
