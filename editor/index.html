@@ -77,19 +77,19 @@ canvas { display: block; }
     <div class="sec-title">Elementos</div>
     <div class="palette" id="palette">
       <div class="pal-item" data-type="fire">
-        <img src="../assets/fuego.png" alt="Fuego"><span>Fuego</span>
+        <img src="../assets/ingredients/fire.png" alt="Fuego"><span>Fuego</span>
       </div>
       <div class="pal-item" data-type="water">
-        <img src="../assets/agua.png" alt="Agua"><span>Agua</span>
+        <img src="../assets/ingredients/water.png" alt="Agua"><span>Agua</span>
       </div>
       <div class="pal-item" data-type="salt">
-        <img src="../assets/sal.png" alt="Sal"><span>Sal</span>
+        <img src="../assets/ingredients/salt.png" alt="Sal"><span>Sal</span>
       </div>
       <div class="pal-item" data-type="grass">
-        <img src="../assets/hierba.png" alt="Hierba"><span>Hierba</span>
+        <img src="../assets/ingredients/soil.png" alt="Hierba"><span>Hierba</span>
       </div>
       <div class="pal-item" data-type="vol" style="grid-column:span 2">
-        <img src="../assets/volatility.png" alt="Volatil."><span>Volatilidad</span>
+        <img src="../assets/ingredients/volatility.png" alt="Volatil."><span>Volatilidad</span>
       </div>
     </div>
   </div>
@@ -146,9 +146,9 @@ const ELEM_HIT  = 48;   // world-unit hit radius for element drag
 const OP_SYM = { gt: '>', lt: '<', eq: '=', ne: '≠' };
 const DICE_COLORS = ['red', 'white', 'green', 'blue'];
 const DICE_CSS = { red: '#d43', white: '#ccc', green: '#4b4', blue: '#46f' };
-const ASSETS = { fire:'../assets/fuego.png', water:'../assets/agua.png',
-                 salt:'../assets/sal.png', grass:'../assets/hierba.png',
-                 vol:'../assets/volatility.png' };
+const ASSETS = { fire:'../assets/ingredients/fire.png', water:'../assets/ingredients/water.png',
+                 salt:'../assets/ingredients/salt.png', grass:'../assets/ingredients/soil.png',
+                 vol:'../assets/ingredients/volatility.png' };
 
 // ── State ──────────────────────────────────────────────────────────────────
 const st = {

@@ -1,13 +1,8 @@
 class_name DieNode
 extends Node2D
 
-const SPRITE_SCALE := 0.5
-const TEXTURES: Dictionary = {
-	"red": preload("res://assets/rojo.png"),
-	"white": preload("res://assets/blanco.png"),
-	"green": preload("res://assets/gren.png"),
-	"blue": preload("res://assets/blue.png"),
-}
+const SPRITE_SCALE := 0.25
+const TEXTURE_PATH := "res://assets/dice/%s_%d.png"
 const ELEMENT_MAP: Dictionary = {
 	"red": "fire",
 	"white": "salt",
@@ -21,7 +16,6 @@ var home_position: Vector2
 var is_placed: bool = false
 
 @onready var _sprite: Sprite2D = $Sprite2D
-@onready var _label: Label = $Label
 
 var _active_tween: Tween = null
 var _highlighted: bool = false
@@ -31,11 +25,8 @@ func setup(p_color: String, p_value: int, p_pos: Vector2) -> void:
 	die_value = p_value
 	home_position = p_pos
 	position = p_pos
-	_sprite.texture = TEXTURES[color_key]
 	_sprite.scale = Vector2(SPRITE_SCALE, SPRITE_SCALE)
-	_label.text = str(die_value)
-	var font_color := Color.BLACK if color_key == "white" else Color.WHITE
-	_label.add_theme_color_override("font_color", font_color)
+	_update_texture()
 
 func animate_appear(delay: float = 0.0) -> void:
 	scale = Vector2.ZERO
@@ -65,22 +56,25 @@ func set_highlighted(enabled: bool) -> void:
 	queue_redraw()
 
 func update_value_display() -> void:
-	_label.text = str(die_value)
+	_update_texture()
 	var tween := create_tween()
 	tween.tween_property(self, "modulate", Color(1.6, 1.6, 0.4, 1.0), 0.08)
 	tween.tween_property(self, "modulate", Color.WHITE, 0.28)
+
+func _update_texture() -> void:
+	_sprite.texture = load(TEXTURE_PATH % [color_key, die_value])
 
 func matches_element(element_type: String) -> bool:
 	return ELEMENT_MAP.get(color_key, "") == element_type
 
 func get_hit_rect() -> Rect2:
 	if not _sprite or not _sprite.texture:
-		return Rect2(position - Vector2(44, 46), Vector2(88, 92))
+		return Rect2(position - Vector2(44, 44), Vector2(88, 88))
 	var half := _sprite.texture.get_size() * SPRITE_SCALE * 0.5
 	return Rect2(position - half, half * 2.0)
 
 func _draw() -> void:
 	if not _highlighted:
 		return
-	var half := Vector2(44.0, 46.0)
+	var half := Vector2(44.0, 44.0)
 	draw_rect(Rect2(-half, half * 2.0), Color(1.0, 0.85, 0.0, 0.95), false, 5.0)
