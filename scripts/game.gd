@@ -1,6 +1,6 @@
 extends Node2D
 
-const BG_TEXTURE := preload("res://assets/texture.png")
+const BG_TEXTURE := preload("res://assets/backgrounds/background.jpg")
 const DIE_SCENE := preload("res://scenes/die.tscn")
 const ELEMENT_SCENE := preload("res://scenes/element.tscn")
 const OPERATION_SCENE := preload("res://scenes/operation.tscn")
@@ -12,7 +12,7 @@ const OP_TYPES: Array = ["gt", "lt", "eq", "ne"]
 const DICE_BOTTOM_MARGIN := 80.0
 
 # Board row layout — 5 elements + 4 operators centered in screen width
-# element sprite: 252px * 0.35 = 88.2px  |  operator sprite: 157px * 0.38 = 59.7px
+# element sprite: 252px * 0.35 = 88.2px  |  operator sprite: 148px * 0.403 = 59.6px
 const _ELEM_HALF_W := 44.1
 const _OP_HALF_W := 29.85
 const _SLOT_W := 147.9  # _ELEM_HALF_W*2 + _OP_HALF_W*2
