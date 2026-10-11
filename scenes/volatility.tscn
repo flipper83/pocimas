@@ -1,8 +1,9 @@
 [gd_scene format=3 uid="uid://bvol4t1l1t3"]
 
 [ext_resource type="Script" path="res://scripts/volatility_node.gd" id="1_vol"]
-[ext_resource type="Texture2D" path="res://assets/volatility.png" id="2_back"]
-[ext_resource type="Texture2D" path="res://assets/orange.png" id="3_die"]
+[ext_resource type="Texture2D" path="res://assets/frames/frame_volatility.png" id="2_back"]
+[ext_resource type="Texture2D" path="res://assets/dice/black.png" id="3_die"]
+[ext_resource type="Texture2D" path="res://assets/ingredients/volatility.png" id="4_icon"]
 
 [node name="Volatility" type="Node2D"]
 script = ExtResource("1_vol")
@@ -10,14 +11,17 @@ script = ExtResource("1_vol")
 [node name="BackSprite" type="Sprite2D" parent="."]
 texture = ExtResource("2_back")
 
+[node name="IconSprite" type="Sprite2D" parent="."]
+texture = ExtResource("4_icon")
+
 [node name="DieSprite" type="Sprite2D" parent="."]
 texture = ExtResource("3_die")
 
 [node name="Label" type="Label" parent="."]
 offset_left = -44.0
-offset_top = -46.0
+offset_top = -44.0
 offset_right = 44.0
-offset_bottom = 46.0
+offset_bottom = 44.0
 theme_override_colors/font_color = Color(1, 1, 1, 1)
 theme_override_font_sizes/font_size = 40
 horizontal_alignment = 1
