@@ -10,6 +10,7 @@ const ELEMENT_TYPES: Array = ["fire", "water", "salt", "grass"]
 const LEVEL_DISPLAY_SCALE := 1.15
 const OP_TYPES: Array = ["gt", "lt", "eq", "ne"]
 const DICE_BOTTOM_MARGIN := 80.0
+const DIE_SIZE_RATIO := 0.9  # tamaño del dado respecto a la separación entre dados
 
 # Board row layout — 5 elements + 4 operators centered in screen width
 # element sprite: 252px * 0.35 = 88.2px  |  operator sprite: 148px * 0.403 = 59.6px
@@ -104,13 +105,15 @@ func _setup_elements() -> void:
 func _setup_dice() -> void:
 	var colors: Array = ["red", "red", "white", "green", "green", "blue", "blue"]
 	colors.shuffle()
-	var spacing := _screen_w / 7.0
+	var n := 7.0
+	var die_spacing := minf(90.0, _screen_w * 0.92 / n)
+	var start_x := (_screen_w - die_spacing * n) * 0.5 + die_spacing * 0.5
 	var dice_y := _screen_h - DICE_BOTTOM_MARGIN
 	for i in 7:
 		var die: DieNode = DIE_SCENE.instantiate()
 		add_child(die)
-		var pos := Vector2(spacing * 0.5 + spacing * i, dice_y)
-		die.setup(colors[i], randi_range(1, 6), pos)
+		var pos := Vector2(start_x + die_spacing * i, dice_y)
+		die.setup(colors[i], randi_range(1, 6), pos, die_spacing * DIE_SIZE_RATIO)
 		die.z_index = 1
 		die.animate_appear(i * 0.08)
 		_dice.append(die)
@@ -185,13 +188,15 @@ func _setup_dice_from_level() -> void:
 		for _i in dice_counts[color]:
 			colors.append(color)
 	colors.shuffle()
-	var spacing := _screen_w / float(colors.size())
+	var n := float(colors.size())
+	var die_spacing := minf(90.0, _screen_w * 0.92 / n)
+	var start_x := (_screen_w - die_spacing * n) * 0.5 + die_spacing * 0.5
 	var dice_y := _screen_h - DICE_BOTTOM_MARGIN
 	for i in colors.size():
 		var die: DieNode = DIE_SCENE.instantiate()
 		add_child(die)
-		var pos := Vector2(spacing * 0.5 + spacing * i, dice_y)
-		die.setup(colors[i], randi_range(1, 6), pos)
+		var pos := Vector2(start_x + die_spacing * i, dice_y)
+		die.setup(colors[i], randi_range(1, 6), pos, die_spacing * DIE_SIZE_RATIO)
 		die.z_index = 1
 		die.animate_appear(i * 0.08)
 		_dice.append(die)
