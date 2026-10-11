@@ -278,6 +278,10 @@ func _try_drop(drop_pos: Vector2) -> void:
 			elem.show_fail()
 			die.animate_return()
 			return
+		if not _is_adjacent_to_placed(i):
+			elem.show_fail()
+			die.animate_return()
+			return
 		var violated_op := _find_violated_op(die.die_value, i)
 		if violated_op:
 			violated_op.show_fail()
@@ -291,6 +295,37 @@ func _try_drop(drop_pos: Vector2) -> void:
 		return
 
 	die.animate_return()
+
+# El primer dado puede ir en cualquier elemento; los siguientes solo en
+# elementos conectados por una operación a otro elemento que ya tenga dado.
+func _is_adjacent_to_placed(elem_index: int) -> bool:
+	var any_placed := false
+	for elem: ElementNode in _elements:
+		if elem.placed_die_value != -1:
+			any_placed = true
+			break
+	if not any_placed:
+		return true
+	for neighbor_idx: int in _neighbors_of(elem_index):
+		if (_elements[neighbor_idx] as ElementNode).placed_die_value != -1:
+			return true
+	return false
+
+func _neighbors_of(elem_index: int) -> Array[int]:
+	var result: Array[int] = []
+	if _level_data.is_empty():
+		# Random mode: linear row
+		if elem_index > 0:
+			result.append(elem_index - 1)
+		if elem_index < _elements.size() - 1:
+			result.append(elem_index + 1)
+	else:
+		for op: OperationNode in _operations:
+			if op.from_elem_idx == elem_index:
+				result.append(op.to_elem_idx)
+			elif op.to_elem_idx == elem_index:
+				result.append(op.from_elem_idx)
+	return result
 
 func _find_violated_op(die_value: int, elem_index: int) -> OperationNode:
 	if _level_data.is_empty():
@@ -351,14 +386,21 @@ func _exit_selection_mode() -> void:
 
 func _apply_to_die(die: DieNode) -> void:
 	_exit_selection_mode()
+	# Un dado "da la vuelta" si pasa de 6 a 1 / de 1 a 6, o si se gira con hierba.
+	var flipped := false
 	match _pending_effect:
 		"fire":
+			flipped = die.die_value + _pending_placed_value > 6
 			die.die_value = ((die.die_value - 1 + _pending_placed_value) % 6) + 1
 		"water":
+			flipped = die.die_value - _pending_placed_value < 1
 			die.die_value = ((die.die_value - 1 - _pending_placed_value) % 6 + 6) % 6 + 1
 		"grass":
+			flipped = true
 			die.die_value = 7 - die.die_value
 	die.update_value_display()
+	if flipped:
+		_increase_volatility()
 
 func _apply_to_volatility() -> void:
 	_exit_selection_mode()
@@ -385,6 +427,9 @@ func _on_reroll_pressed() -> void:
 		if not die.is_placed:
 			die.die_value = randi_range(1, 6)
 			die.update_value_display()
+	_increase_volatility()
+
+func _increase_volatility() -> void:
 	_volatility.die_value += 1
 	_volatility.update_value_display()
 	if _volatility.die_value > 6:

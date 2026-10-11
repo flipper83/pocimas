@@ -5,61 +5,61 @@
     "green": 2,
     "blue": 1
   },
-  "grid_unit": 110,
+  "grid_unit": 55,
   "elements": [
     {
       "id": 3,
       "type": "fire",
-      "gx": 4,
-      "gy": 1
+      "gx": 8,
+      "gy": 3
     },
     {
       "id": 6,
       "type": "water",
-      "gx": 4,
-      "gy": 3
+      "gx": 8,
+      "gy": 6
     },
     {
       "id": 8,
       "type": "fire",
-      "gx": 2,
-      "gy": 3
+      "gx": 4,
+      "gy": 6
     },
     {
       "id": 9,
       "type": "fire",
-      "gx": 6,
-      "gy": 3
+      "gx": 12,
+      "gy": 6
     },
     {
       "id": 10,
       "type": "grass",
-      "gx": 3,
-      "gy": 4
+      "gx": 6,
+      "gy": 8
     },
     {
       "id": 11,
       "type": "grass",
-      "gx": 5,
-      "gy": 4
+      "gx": 10,
+      "gy": 8
     },
     {
       "id": 12,
       "type": "salt",
-      "gx": 4,
-      "gy": 4
+      "gx": 8,
+      "gy": 9
     },
     {
       "id": 13,
       "type": "salt",
-      "gx": 4,
-      "gy": 5
+      "gx": 8,
+      "gy": 12
     },
     {
       "id": 14,
       "type": "vol",
-      "gx": 6,
-      "gy": 5
+      "gx": 12,
+      "gy": 12
     }
   ],
   "operations": [
