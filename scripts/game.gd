@@ -10,6 +10,8 @@ const ELEMENT_TYPES: Array = ["fire", "water", "salt", "grass"]
 const LEVEL_DISPLAY_SCALE := 1.15
 const OP_TYPES: Array = ["gt", "lt", "eq", "ne"]
 const DICE_BOTTOM_MARGIN := 80.0
+const REROLL_BTN_SIZE := Vector2(240, 64)
+const REROLL_BTN_GAP := 20.0  # separación entre el botón y la parte superior de los dados
 const DIE_SIZE_RATIO := 0.9  # tamaño del dado respecto a la separación entre dados
 
 # Board row layout — 5 elements + 4 operators centered in screen width
@@ -218,8 +220,11 @@ func _setup_reroll_button() -> void:
 	var style_hover := style.duplicate() as StyleBoxFlat
 	style_hover.bg_color = Color(0.25, 0.25, 0.5, 0.95)
 	_reroll_btn.add_theme_stylebox_override("hover", style_hover)
-	_reroll_btn.size = Vector2(240, 64)
-	_reroll_btn.position = Vector2((_screen_w - 240) * 0.5, _screen_h * 0.78)
+	_reroll_btn.size = REROLL_BTN_SIZE
+	var dice_top := _screen_h - DICE_BOTTOM_MARGIN - DieNode.DEFAULT_SIZE * 0.5
+	_reroll_btn.position = Vector2(
+		(_screen_w - REROLL_BTN_SIZE.x) * 0.5,
+		dice_top - REROLL_BTN_GAP - REROLL_BTN_SIZE.y)
 	_reroll_btn.pressed.connect(_on_reroll_pressed)
 	add_child(_reroll_btn)
 
