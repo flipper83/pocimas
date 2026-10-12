@@ -254,6 +254,7 @@ func _input(event: InputEvent) -> void:
 					_drag_offset = die.position - pos
 					die.cancel_animation()
 					die.z_index = 10
+					_highlight_valid_targets(die)
 					break
 	elif _is_release(event):
 		if _dragged_die:
@@ -266,6 +267,7 @@ func _try_drop(drop_pos: Vector2) -> void:
 	var die := _dragged_die
 	_dragged_die = null
 	die.z_index = 1
+	_clear_target_highlights()
 
 	for i in _elements.size():
 		var elem: ElementNode = _elements[i]
@@ -295,6 +297,24 @@ func _try_drop(drop_pos: Vector2) -> void:
 		return
 
 	die.animate_return()
+
+func _highlight_valid_targets(die: DieNode) -> void:
+	for i in _elements.size():
+		(_elements[i] as ElementNode).set_highlight(_target_highlight(die, i))
+
+func _clear_target_highlights() -> void:
+	for elem: ElementNode in _elements:
+		elem.set_highlight(ElementNode.Highlight.NONE)
+
+func _target_highlight(die: DieNode, elem_index: int) -> ElementNode.Highlight:
+	var elem: ElementNode = _elements[elem_index]
+	if elem.placed_die_value != -1 \
+			or not die.matches_element(elem.element_type) \
+			or not _is_adjacent_to_placed(elem_index):
+		return ElementNode.Highlight.NONE
+	if _find_violated_op(die.die_value, elem_index):
+		return ElementNode.Highlight.BLOCKED
+	return ElementNode.Highlight.VALID
 
 # El primer dado puede ir en cualquier elemento; los siguientes solo en
 # elementos conectados por una operación a otro elemento que ya tenga dado.

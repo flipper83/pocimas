@@ -4,6 +4,7 @@ extends Node2D
 const BACK_SCALE := 0.55
 const ICON_SCALE := 0.55
 const DIE_SCALE := 0.25
+const DIE_TEXTURE_PATH := "res://assets/dice/black_%d.png"
 
 var die_value: int = 1
 var _highlighted: bool = false
@@ -11,13 +12,12 @@ var _highlighted: bool = false
 @onready var _back: Sprite2D = $BackSprite
 @onready var _icon: Sprite2D = $IconSprite
 @onready var _die_sprite: Sprite2D = $DieSprite
-@onready var _label: Label = $Label
 
 func _ready() -> void:
 	_back.scale = Vector2(BACK_SCALE, BACK_SCALE)
 	_icon.scale = Vector2(ICON_SCALE, ICON_SCALE)
 	_die_sprite.scale = Vector2(DIE_SCALE, DIE_SCALE)
-	_label.text = "1"
+	_update_texture()
 
 func set_highlighted(enabled: bool) -> void:
 	_highlighted = enabled
@@ -25,10 +25,14 @@ func set_highlighted(enabled: bool) -> void:
 	queue_redraw()
 
 func update_value_display() -> void:
-	_label.text = str(die_value)
+	_update_texture()
 	var tween := create_tween()
 	tween.tween_property(self, "modulate", Color(1.6, 1.6, 0.4, 1.0), 0.08)
 	tween.tween_property(self, "modulate", Color.WHITE, 0.28)
+
+# Fuera de 1..6 la partida termina; mostramos la cara más cercana.
+func _update_texture() -> void:
+	_die_sprite.texture = load(DIE_TEXTURE_PATH % clampi(die_value, 1, 6))
 
 func get_hit_rect() -> Rect2:
 	return Rect2(position - Vector2(44, 44), Vector2(88, 88))
