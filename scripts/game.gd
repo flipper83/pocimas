@@ -7,6 +7,9 @@ const DIE_SCENE := preload("res://scenes/die.tscn")
 const ELEMENT_SCENE := preload("res://scenes/element.tscn")
 const OPERATION_SCENE := preload("res://scenes/operation.tscn")
 const VOLATILITY_SCENE := preload("res://scenes/volatility.tscn")
+const SPLASH_SCENE := preload("res://scenes/ui/splash_screen.tscn")
+const TUTORIAL_SCENE := preload("res://scenes/ui/tutorial.tscn")
+const SETTINGS_PATH := "user://settings.cfg"
 
 const ELEMENT_TYPES: Array = ["fire", "water", "salt", "grass"]
 const LEVEL_DISPLAY_SCALE := 1.15  # separación de diseño; el tablero se reduce si no cabe
@@ -18,6 +21,7 @@ const DICE_EXTRA_MARGIN_RATIO := 0.1  # parte del alto sobrante (móviles alarga
 const MAX_DIE_SPACING := 90.0
 const REROLL_BTN_SIZE := Vector2(240, 64)
 const REROLL_BTN_GAP := 20.0  # separación entre el botón y la parte superior de los dados
+const HELP_BTN_SIZE := Vector2(64, 64)
 const DIE_SIZE_RATIO := 0.9  # tamaño del dado respecto a la separación entre dados
 const POWER_HINT_TOP := 40.0
 const NOTE_TEXT_COLOR := Color(0.99, 0.95, 0.86, 1.0)
@@ -59,6 +63,12 @@ var _grid_max_scale: float = LEVEL_DISPLAY_SCALE
 # Dado colocado → elemento en el que está, para recolocarlo si cambia el tamaño.
 var _placed_on: Dictionary = {}
 
+# La portada solo se ve al cargar el juego, no al reiniciar la partida.
+static var _splash_shown: bool = false
+var _help_btn: Button = null
+var _intro_active: bool = true
+var _dice_revealed: bool = false
+
 func load_level(data: Dictionary) -> void:
 	_level_data = data
 
@@ -79,9 +89,58 @@ func _ready() -> void:
 		_setup_elements_from_level()
 		_setup_dice_from_level()
 	_setup_reroll_button()
+	_setup_help_button()
 	_layout()
 	# En web móvil el alto cambia al mostrar/ocultar la barra del navegador.
 	get_viewport().size_changed.connect(_layout)
+	_start_intro()
+
+# --- Intro: portada → tutorial (solo la primera vez) → partida ----------------
+
+func _start_intro() -> void:
+	if _splash_shown:
+		_on_splash_finished()
+		return
+	_splash_shown = true
+	var splash: SplashScreen = SPLASH_SCENE.instantiate()
+	add_child(splash)
+	splash.finished.connect(_on_splash_finished)
+
+func _on_splash_finished() -> void:
+	if _tutorial_seen():
+		_finish_intro()
+	else:
+		_show_tutorial()
+
+func _show_tutorial() -> void:
+	_intro_active = true
+	var tutorial: Tutorial = TUTORIAL_SCENE.instantiate()
+	add_child(tutorial)
+	tutorial.closed.connect(_on_tutorial_closed)
+
+func _on_tutorial_closed() -> void:
+	_mark_tutorial_seen()
+	_finish_intro()
+
+func _finish_intro() -> void:
+	_intro_active = false
+	if _dice_revealed:
+		return
+	_dice_revealed = true
+	for i in _dice.size():
+		(_dice[i] as DieNode).animate_appear(i * 0.08)
+
+func _tutorial_seen() -> bool:
+	var config := ConfigFile.new()
+	if config.load(SETTINGS_PATH) != OK:
+		return false
+	return config.get_value("tutorial", "seen", false)
+
+func _mark_tutorial_seen() -> void:
+	var config := ConfigFile.new()
+	config.load(SETTINGS_PATH)
+	config.set_value("tutorial", "seen", true)
+	config.save(SETTINGS_PATH)
 
 # --- Layout -----------------------------------------------------------------
 # La columna de juego mide LevelPage.DESIGN_SIZE.x de ancho y se centra; con
@@ -104,6 +163,10 @@ func _layout() -> void:
 	var dice_top := dice_y - _die_spacing() * DIE_SIZE_RATIO * 0.5
 	var reroll_top := dice_top - REROLL_BTN_GAP - REROLL_BTN_SIZE.y
 	_reroll_btn.position = Vector2(center_x - REROLL_BTN_SIZE.x * 0.5, reroll_top)
+	var column_right := center_x + minf(view.size.x, LevelPage.DESIGN_SIZE.x) * 0.5
+	_help_btn.position = Vector2(
+		column_right - BOARD_SIDE_MARGIN - HELP_BTN_SIZE.x,
+		reroll_top + (REROLL_BTN_SIZE.y - HELP_BTN_SIZE.y) * 0.5)
 	_power_hint.position = Vector2(center_x - _power_hint.size.x * 0.5, safe.position.y + POWER_HINT_TOP)
 
 	_page.layout(safe, reroll_top)
@@ -248,7 +311,7 @@ func _show_power_hint(effect: String, placed_value: int) -> void:
 			_power_hint_detail.text = "If it drops below 1, it wraps around and volatility rises"
 		"grass":
 			_power_hint_title.text = "Soil: flip a die to its opposite face"
-			_power_hint_detail.text = "Flipping a die raises volatility"
+			_power_hint_detail.text = "Flipping does not raise volatility"
 	_power_hint_detail.text += "\nTap a die or the volatility die"
 	_power_hint.visible = true
 	_power_hint.reset_size()
@@ -340,34 +403,50 @@ func _spawn_dice(colors: Array) -> void:
 		add_child(die)
 		die.setup(colors[i], randi_range(1, 6), Vector2.ZERO, die_size)
 		die.z_index = 1
-		die.animate_appear(i * 0.08)
+		die.scale = Vector2.ZERO  # aparecen al terminar la intro
 		_dice.append(die)
 
-func _setup_reroll_button() -> void:
-	_reroll_btn = Button.new()
-	_reroll_btn.text = "Reroll"
-	_reroll_btn.add_theme_font_size_override("font_size", 34)
+# Botón con la textura de nota, como el tooltip.
+func _make_note_button(text: String, font_size: int, margin_h: float) -> Button:
+	var btn := Button.new()
+	btn.text = text
+	btn.add_theme_font_size_override("font_size", font_size)
 	for color_name: String in ["font_color", "font_hover_color", "font_pressed_color", "font_focus_color"]:
-		_reroll_btn.add_theme_color_override(color_name, NOTE_TEXT_COLOR)
-	var style := _note_style(16, 4)
-	_reroll_btn.add_theme_stylebox_override("normal", style)
-	_reroll_btn.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
+		btn.add_theme_color_override(color_name, NOTE_TEXT_COLOR)
+	var style := _note_style(margin_h, 4)
+	btn.add_theme_stylebox_override("normal", style)
+	btn.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
 	var style_hover := style.duplicate() as StyleBoxTexture
 	style_hover.modulate_color = Color(1.15, 1.15, 1.15, 1.0)
-	_reroll_btn.add_theme_stylebox_override("hover", style_hover)
+	btn.add_theme_stylebox_override("hover", style_hover)
 	var style_pressed := style.duplicate() as StyleBoxTexture
 	style_pressed.modulate_color = Color(0.8, 0.8, 0.8, 1.0)
-	_reroll_btn.add_theme_stylebox_override("pressed", style_pressed)
+	btn.add_theme_stylebox_override("pressed", style_pressed)
 	var style_disabled := style.duplicate() as StyleBoxTexture
 	style_disabled.modulate_color = Color(0.6, 0.6, 0.6, 1.0)
-	_reroll_btn.add_theme_stylebox_override("disabled", style_disabled)
-	_reroll_btn.add_theme_color_override("font_disabled_color", NOTE_DETAIL_COLOR.darkened(0.3))
+	btn.add_theme_stylebox_override("disabled", style_disabled)
+	btn.add_theme_color_override("font_disabled_color", NOTE_DETAIL_COLOR.darkened(0.3))
+	return btn
+
+func _setup_reroll_button() -> void:
+	_reroll_btn = _make_note_button("Reroll", 34, 16)
 	_reroll_btn.size = REROLL_BTN_SIZE
 	_reroll_btn.pressed.connect(_on_reroll_pressed)
 	add_child(_reroll_btn)
 
+func _setup_help_button() -> void:
+	_help_btn = _make_note_button("?", 40, 4)
+	_help_btn.size = HELP_BTN_SIZE
+	_help_btn.pressed.connect(_on_help_pressed)
+	add_child(_help_btn)
+
+func _on_help_pressed() -> void:
+	if _game_over or _intro_active or _state != State.IDLE:
+		return
+	_show_tutorial()
+
 func _input(event: InputEvent) -> void:
-	if _game_over:
+	if _game_over or _intro_active:
 		return
 	var pos := _event_pos(event)
 	if pos == Vector2.INF:
@@ -560,7 +639,7 @@ func _exit_selection_mode() -> void:
 
 func _apply_to_die(die: DieNode) -> void:
 	_exit_selection_mode()
-	# Un dado "da la vuelta" si pasa de 6 a 1 / de 1 a 6, o si se gira con hierba.
+	# Un dado "da la vuelta" si pasa de 6 a 1 o de 1 a 6; girarlo con tierra no cuenta.
 	var flipped := false
 	match _pending_effect:
 		"fire":
@@ -570,7 +649,6 @@ func _apply_to_die(die: DieNode) -> void:
 			flipped = die.die_value - _pending_placed_value < 1
 			die.die_value = ((die.die_value - 1 - _pending_placed_value) % 6 + 6) % 6 + 1
 		"grass":
-			flipped = true
 			die.die_value = 7 - die.die_value
 	die.update_value_display()
 	if flipped:
@@ -593,7 +671,7 @@ func _apply_to_volatility() -> void:
 	_check_potion_ready()
 
 func _on_reroll_pressed() -> void:
-	if _game_over:
+	if _game_over or _intro_active:
 		return
 	for die: DieNode in _dice:
 		if not die.is_placed:
