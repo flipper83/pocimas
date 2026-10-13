@@ -20,8 +20,12 @@ config/icon="res://icon.svg"
 window/size/viewport_width=720
 window/size/viewport_height=1280
 window/stretch/mode="canvas_items"
-window/stretch/aspect="keep"
+window/stretch/aspect="expand"
 window/handheld/orientation="portrait"
+
+[gui]
+
+theme/custom_font="res://assets/fonts/historical_fell_type_italic.otf"
 
 [physics]
 

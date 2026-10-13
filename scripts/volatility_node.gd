@@ -35,7 +35,8 @@ func _update_texture() -> void:
 	_die_sprite.texture = load(DIE_TEXTURE_PATH % clampi(die_value, 1, 6))
 
 func get_hit_rect() -> Rect2:
-	return Rect2(position - Vector2(44, 44), Vector2(88, 88))
+	var half := Vector2(44, 44) * scale
+	return Rect2(position - half, half * 2.0)
 
 func _draw() -> void:
 	if not _highlighted:

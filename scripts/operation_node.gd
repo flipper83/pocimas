@@ -14,6 +14,11 @@ const DIRECTIONAL_TYPES: Array = ["gt", "lt"]
 var op_type: String = "gt"
 var from_elem_idx: int = -1
 var to_elem_idx: int = -1
+## Escala del tablero; el rebote de show_fail() vuelve a este valor.
+var base_scale: Vector2 = Vector2.ONE:
+	set(value):
+		base_scale = value
+		scale = value
 
 @onready var _sprite: Sprite2D = $Sprite2D
 
@@ -52,5 +57,5 @@ func show_fail() -> void:
 	t1.tween_property(self, "modulate", Color(1.0, 0.2, 0.2, 1.0), 0.08)
 	t1.tween_property(self, "modulate", Color.WHITE, 0.45)
 	var t2 := create_tween()
-	t2.tween_property(self, "scale", Vector2(1.3, 1.3), 0.08)
-	t2.tween_property(self, "scale", Vector2.ONE, 0.2)
+	t2.tween_property(self, "scale", base_scale * 1.3, 0.08)
+	t2.tween_property(self, "scale", base_scale, 0.2)

@@ -1,31 +1,40 @@
 extends Node2D
 
 const BG_TEXTURE := preload("res://assets/backgrounds/background.jpg")
+const NOTE_TEXTURE := preload("res://assets/ui/note_panel.png")
+const LEVEL_PAGE_SCENE := preload("res://scenes/level_page.tscn")
 const DIE_SCENE := preload("res://scenes/die.tscn")
 const ELEMENT_SCENE := preload("res://scenes/element.tscn")
 const OPERATION_SCENE := preload("res://scenes/operation.tscn")
 const VOLATILITY_SCENE := preload("res://scenes/volatility.tscn")
 
 const ELEMENT_TYPES: Array = ["fire", "water", "salt", "grass"]
-const LEVEL_DISPLAY_SCALE := 1.15
+const LEVEL_DISPLAY_SCALE := 1.15  # separación de diseño; el tablero se reduce si no cabe
+const BOARD_SIDE_MARGIN := 24.0
+const BOARD_CELL_SIZE := 120.0  # tamaño de una pieza (marco + etiqueta) a escala 1
 const OP_TYPES: Array = ["gt", "lt", "eq", "ne"]
 const DICE_BOTTOM_MARGIN := 80.0
+const DICE_EXTRA_MARGIN_RATIO := 0.1  # parte del alto sobrante (móviles alargados) que sube los dados
+const MAX_DIE_SPACING := 90.0
 const REROLL_BTN_SIZE := Vector2(240, 64)
 const REROLL_BTN_GAP := 20.0  # separación entre el botón y la parte superior de los dados
 const DIE_SIZE_RATIO := 0.9  # tamaño del dado respecto a la separación entre dados
+const POWER_HINT_TOP := 40.0
+const NOTE_TEXT_COLOR := Color(0.99, 0.95, 0.86, 1.0)
+const NOTE_DETAIL_COLOR := Color(0.88, 0.93, 0.9, 1.0)
+const POWER_HINT_WIDTH_RATIO := 0.88
 
-# Board row layout — 5 elements + 4 operators centered in screen width
-# element sprite: 252px * 0.35 = 88.2px  |  operator sprite: 148px * 0.403 = 59.6px
-const _ELEM_HALF_W := 44.1
-const _OP_HALF_W := 29.85
-const _SLOT_W := 147.9  # _ELEM_HALF_W*2 + _OP_HALF_W*2
+# Modo aleatorio (sin nivel): 5 elementos en fila, separados por un operador
+const _RANDOM_ROW_SLOT := 147.9  # ancho de elemento + operador
+const _RANDOM_VOL_GRID := Vector2(8, 3)
 
 var _level_data: Dictionary = {}
+var _page: LevelPage = null
 
 enum State { IDLE, SELECTING_TARGET }
+enum Outcome { EXPLOSION, SOUP, POTION_READY }
 
-var _screen_w: float
-var _screen_h: float
+var _background: Sprite2D = null
 var _dice: Array = []
 var _elements: Array = []
 var _operations: Array = []
@@ -37,18 +46,28 @@ var _state: State = State.IDLE
 var _pending_effect: String = ""
 var _pending_placed_value: int = 0
 var _overlay: ColorRect = null
+var _power_hint: PanelContainer = null
+var _power_hint_title: Label = null
+var _power_hint_detail: Label = null
 var _game_over: bool = false
+
+# Posición lógica del tablero en celdas de rejilla; se pasa a pantalla en _layout_board().
+var _elem_grid: Array[Vector2] = []
+var _vol_grid: Vector2 = Vector2.ZERO
+var _grid_base_unit: float = 110.0
+var _grid_max_scale: float = LEVEL_DISPLAY_SCALE
+# Dado colocado → elemento en el que está, para recolocarlo si cambia el tamaño.
+var _placed_on: Dictionary = {}
 
 func load_level(data: Dictionary) -> void:
 	_level_data = data
 
 func _ready() -> void:
-	var rect := get_viewport().get_visible_rect()
-	_screen_w = rect.size.x
-	_screen_h = rect.size.y
 	randomize()
 	_setup_background()
+	_setup_page()
 	_setup_overlay()
+	_setup_power_hint()
 	_setup_volatility()
 	if _level_data.is_empty():
 		_level_data = LevelLoader.load_from_file("res://assets/levels/level.json")
@@ -56,118 +75,242 @@ func _ready() -> void:
 		_setup_elements()
 		_setup_dice()
 	else:
+		_page.level_name = _level_data.get("name", _page.level_name)
 		_setup_elements_from_level()
 		_setup_dice_from_level()
 	_setup_reroll_button()
+	_layout()
+	# En web móvil el alto cambia al mostrar/ocultar la barra del navegador.
+	get_viewport().size_changed.connect(_layout)
+
+# --- Layout -----------------------------------------------------------------
+# La columna de juego mide LevelPage.DESIGN_SIZE.x de ancho y se centra; con
+# stretch "expand" el alto crece en móviles alargados y ese sobrante se reparte.
+
+func _layout() -> void:
+	var view := get_viewport().get_visible_rect()
+	var safe := _safe_rect(view)
+	var extra_h := maxf(0.0, safe.size.y - LevelPage.DESIGN_SIZE.y)
+	var center_x := safe.get_center().x
+
+	_background.position = view.get_center()
+	var tex_size := _background.texture.get_size()
+	var cover_scale := maxf(view.size.x / tex_size.x, view.size.y / tex_size.y)
+	_background.scale = Vector2(cover_scale, cover_scale)
+	_overlay.position = view.position
+	_overlay.size = view.size
+
+	var dice_y := safe.end.y - DICE_BOTTOM_MARGIN - extra_h * DICE_EXTRA_MARGIN_RATIO
+	var dice_top := dice_y - _die_spacing() * DIE_SIZE_RATIO * 0.5
+	var reroll_top := dice_top - REROLL_BTN_GAP - REROLL_BTN_SIZE.y
+	_reroll_btn.position = Vector2(center_x - REROLL_BTN_SIZE.x * 0.5, reroll_top)
+	_power_hint.position = Vector2(center_x - _power_hint.size.x * 0.5, safe.position.y + POWER_HINT_TOP)
+
+	_page.layout(safe, reroll_top)
+	_layout_board()
+	_layout_dice(center_x, dice_y)
+
+# Zona segura (notch, barra de gestos) en coordenadas del viewport; solo la
+# reportan las plataformas móviles nativas.
+func _safe_rect(view: Rect2) -> Rect2:
+	if not OS.has_feature("mobile"):
+		return view
+	var safe := Rect2(DisplayServer.get_display_safe_area())
+	var window := Vector2(DisplayServer.window_get_size())
+	if safe.size == Vector2.ZERO or window == Vector2.ZERO:
+		return view
+	var k := view.size / window
+	return Rect2(view.position + safe.position * k, safe.size * k)
+
+func _layout_board() -> void:
+	var board := _page.board_rect
+	var min_g := _vol_grid
+	var max_g := _vol_grid
+	for g: Vector2 in _elem_grid:
+		min_g = min_g.min(g)
+		max_g = max_g.max(g)
+	var span := max_g - min_g
+
+	# Si el nivel no cabe entre las cenefas se escala entero (separación y
+	# piezas a la vez), así se mantienen las proporciones del diseño.
+	var design_unit := _grid_base_unit * _grid_max_scale
+	var needed := span * design_unit + Vector2.ONE * BOARD_CELL_SIZE  # tamaño a escala 1
+	var avail := Vector2(
+		minf(board.size.x, LevelPage.DESIGN_SIZE.x) - BOARD_SIDE_MARGIN * 2.0,
+		board.size.y)
+	var board_scale := minf(1.0, minf(avail.x / needed.x, avail.y / needed.y))
+	var grid_unit := design_unit * board_scale
+	var piece_scale := Vector2(board_scale, board_scale)
+	var origin := board.get_center() - (min_g + span * 0.5) * grid_unit
+
+	for i in _elements.size():
+		var elem: ElementNode = _elements[i]
+		elem.position = origin + _elem_grid[i] * grid_unit
+		elem.scale = piece_scale
+	_volatility.position = origin + _vol_grid * grid_unit
+	_volatility.scale = piece_scale
+	for op: OperationNode in _operations:
+		var pos_a: Vector2 = (_elements[op.from_elem_idx] as ElementNode).position
+		var pos_b: Vector2 = (_elements[op.to_elem_idx] as ElementNode).position
+		op.position = (pos_a + pos_b) * 0.5
+		op.base_scale = piece_scale
+
+func _die_spacing() -> float:
+	return minf(MAX_DIE_SPACING, LevelPage.DESIGN_SIZE.x * 0.92 / maxf(1.0, _dice.size()))
+
+func _layout_dice(center_x: float, dice_y: float) -> void:
+	var spacing := _die_spacing()
+	var start_x := center_x - spacing * (_dice.size() - 1) * 0.5
+	for i in _dice.size():
+		var die: DieNode = _dice[i]
+		var home := Vector2(start_x + spacing * i, dice_y)
+		if _placed_on.has(die):
+			var elem: ElementNode = _placed_on[die]
+			home = elem.position
+			die.scale = elem.scale
+		die.home_position = home
+		if die != _dragged_die:
+			die.position = home
+
+# --- Setup ------------------------------------------------------------------
 
 func _setup_background() -> void:
-	var bg := Sprite2D.new()
-	bg.texture = BG_TEXTURE
-	bg.z_index = -10
-	bg.position = Vector2(_screen_w * 0.5, _screen_h * 0.5)
-	var tex_size := bg.texture.get_size()
-	var cover_scale := maxf(_screen_w / tex_size.x, _screen_h / tex_size.y)
-	bg.scale = Vector2(cover_scale, cover_scale)
-	add_child(bg)
+	_background = Sprite2D.new()
+	_background.texture = BG_TEXTURE
+	_background.z_index = -10
+	add_child(_background)
+
+func _setup_page() -> void:
+	_page = LEVEL_PAGE_SCENE.instantiate()
+	add_child(_page)
+
+# Panel con la textura de nota (verde azulado) usado por el tooltip y los botones.
+func _note_style(margin_h: float, margin_v: float) -> StyleBoxTexture:
+	var style := StyleBoxTexture.new()
+	style.texture = NOTE_TEXTURE
+	style.set_texture_margin_all(12)
+	style.content_margin_left = margin_h
+	style.content_margin_right = margin_h
+	style.content_margin_top = margin_v
+	style.content_margin_bottom = margin_v
+	return style
 
 func _setup_overlay() -> void:
 	_overlay = ColorRect.new()
 	_overlay.color = Color(0.0, 0.0, 0.0, 0.5)
 	_overlay.z_index = 5
-	_overlay.size = Vector2(_screen_w, _screen_h)
 	_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_overlay.visible = false
 	add_child(_overlay)
 
+func _setup_power_hint() -> void:
+	_power_hint = PanelContainer.new()
+	_power_hint.z_index = 7
+	_power_hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var style := _note_style(28, 20)
+	_power_hint.add_theme_stylebox_override("panel", style)
+
+	var box := VBoxContainer.new()
+	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	box.add_theme_constant_override("separation", 6)
+	_power_hint.add_child(box)
+
+	_power_hint_title = Label.new()
+	_power_hint_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_power_hint_title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_power_hint_title.add_theme_font_size_override("font_size", 40)
+	_power_hint_title.add_theme_color_override("font_color", NOTE_TEXT_COLOR)
+	box.add_child(_power_hint_title)
+
+	_power_hint_detail = Label.new()
+	_power_hint_detail.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_power_hint_detail.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_power_hint_detail.add_theme_font_size_override("font_size", 28)
+	_power_hint_detail.add_theme_color_override("font_color", NOTE_DETAIL_COLOR)
+	box.add_child(_power_hint_detail)
+
+	# Con autowrap, las etiquetas necesitan un ancho fijo o el panel crece en alto.
+	var hint_w := LevelPage.DESIGN_SIZE.x * POWER_HINT_WIDTH_RATIO
+	var label_w := hint_w - style.content_margin_left - style.content_margin_right
+	_power_hint_title.custom_minimum_size = Vector2(label_w, 0)
+	_power_hint_detail.custom_minimum_size = Vector2(label_w, 0)
+	_power_hint.size = Vector2(hint_w, 0)
+	_power_hint.visible = false
+	add_child(_power_hint)
+
+func _show_power_hint(effect: String, placed_value: int) -> void:
+	match effect:
+		"fire":
+			_power_hint_title.text = "Fire: add %d to a die" % placed_value
+			_power_hint_detail.text = "If it goes over 6, it wraps around and volatility rises"
+		"water":
+			_power_hint_title.text = "Water: subtract %d from a die" % placed_value
+			_power_hint_detail.text = "If it drops below 1, it wraps around and volatility rises"
+		"grass":
+			_power_hint_title.text = "Soil: flip a die to its opposite face"
+			_power_hint_detail.text = "Flipping a die raises volatility"
+	_power_hint_detail.text += "\nTap a die or the volatility die"
+	_power_hint.visible = true
+	_power_hint.reset_size()
+	_power_hint.modulate.a = 0.0
+	create_tween().tween_property(_power_hint, "modulate:a", 1.0, 0.15)
+
+
 func _setup_volatility() -> void:
 	_volatility = VOLATILITY_SCENE.instantiate()
 	add_child(_volatility)
-	_volatility.position = Vector2(_screen_w * 0.5, _screen_h * 0.22)
 	_volatility.z_index = 1
 
 func _setup_elements() -> void:
-	var total_w := 5.0 * _ELEM_HALF_W * 2.0 + 4.0 * _OP_HALF_W * 2.0
-	var start_x := (_screen_w - total_w) * 0.5 + _ELEM_HALF_W
-	var row_y := _screen_h * 0.42
-
+	_grid_base_unit = _RANDOM_ROW_SLOT * 0.5
+	_grid_max_scale = 1.0
+	_vol_grid = _RANDOM_VOL_GRID
 	for i in 5:
-		var elem_x := start_x + i * _SLOT_W
 		var elem: ElementNode = ELEMENT_SCENE.instantiate()
 		add_child(elem)
-		elem.setup(ELEMENT_TYPES[randi() % ELEMENT_TYPES.size()], Vector2(elem_x, row_y))
+		elem.setup(ELEMENT_TYPES[randi() % ELEMENT_TYPES.size()], Vector2.ZERO)
 		_elements.append(elem)
+		_elem_grid.append(Vector2(i * 2, 0))
 
-		if i < 4:
-			var op_x := elem_x + _ELEM_HALF_W + _OP_HALF_W
-			var op: OperationNode = OPERATION_SCENE.instantiate()
-			add_child(op)
-			op.setup(OP_TYPES[randi() % OP_TYPES.size()], Vector2(op_x, row_y))
-			_operations.append(op)
+	for i in 4:
+		var op: OperationNode = OPERATION_SCENE.instantiate()
+		add_child(op)
+		op.setup(OP_TYPES[randi() % OP_TYPES.size()], Vector2.ZERO)
+		op.from_elem_idx = i
+		op.to_elem_idx = i + 1
+		_operations.append(op)
 
 func _setup_dice() -> void:
 	var colors: Array = ["red", "red", "white", "green", "green", "blue", "blue"]
-	colors.shuffle()
-	var n := 7.0
-	var die_spacing := minf(90.0, _screen_w * 0.92 / n)
-	var start_x := (_screen_w - die_spacing * n) * 0.5 + die_spacing * 0.5
-	var dice_y := _screen_h - DICE_BOTTOM_MARGIN
-	for i in 7:
-		var die: DieNode = DIE_SCENE.instantiate()
-		add_child(die)
-		var pos := Vector2(start_x + die_spacing * i, dice_y)
-		die.setup(colors[i], randi_range(1, 6), pos, die_spacing * DIE_SIZE_RATIO)
-		die.z_index = 1
-		die.animate_appear(i * 0.08)
-		_dice.append(die)
-
-func _grid_to_screen(gx: int, gy: int, grid_unit: float, origin: Vector2) -> Vector2:
-	return origin + Vector2(gx * grid_unit, gy * grid_unit)
+	_spawn_dice(colors)
 
 func _setup_elements_from_level() -> void:
-	var grid_unit: float = float(_level_data.get("grid_unit", 110)) * LEVEL_DISPLAY_SCALE
+	_grid_base_unit = float(_level_data.get("grid_unit", 110))
 	var elems_data: Array = _level_data.get("elements", [])
 	var ops_data: Array = _level_data.get("operations", [])
 	var vol_data: Dictionary = _level_data.get("volatility", {})
 
-	# Compute bounding box using all elements (including "vol" type)
-	var min_gx := 99999; var max_gx := -99999
-	var min_gy := 99999; var max_gy := -99999
-	for e: Dictionary in elems_data:
-		min_gx = mini(min_gx, e.get("gx", 0)); max_gx = maxi(max_gx, e.get("gx", 0))
-		min_gy = mini(min_gy, e.get("gy", 0)); max_gy = maxi(max_gy, e.get("gy", 0))
 	# Legacy: separate volatility field (old format)
 	if not vol_data.is_empty():
-		min_gx = mini(min_gx, vol_data.get("gx", 0)); max_gx = maxi(max_gx, vol_data.get("gx", 0))
-		min_gy = mini(min_gy, vol_data.get("gy", 0)); max_gy = maxi(max_gy, vol_data.get("gy", 0))
-	if min_gx == 99999: min_gx = 0; if max_gx == -99999: max_gx = 0
-	if min_gy == 99999: min_gy = 0; if max_gy == -99999: max_gy = 0
-
-	var level_w := (max_gx - min_gx) * grid_unit
-	var level_h := (max_gy - min_gy) * grid_unit
-	var origin := Vector2(
-		(_screen_w - level_w) * 0.5 - min_gx * grid_unit,
-		(_screen_h * 0.25 + (_screen_h * 0.55 - level_h) * 0.5) - min_gy * grid_unit
-	)
-
-	# Legacy separate volatility field
-	if not vol_data.is_empty():
-		_volatility.position = _grid_to_screen(vol_data.get("gx", 0), vol_data.get("gy", 0), grid_unit, origin)
+		_vol_grid = Vector2(vol_data.get("gx", 0), vol_data.get("gy", 0))
 
 	# Elements — "vol" type positions the volatility node, not an ElementNode
 	var elem_by_id: Dictionary = {}
 	for e: Dictionary in elems_data:
 		var type: String = e.get("type", "fire")
-		var pos := _grid_to_screen(e.get("gx", 0), e.get("gy", 0), grid_unit, origin)
+		var grid := Vector2(e.get("gx", 0), e.get("gy", 0))
 		if type == "vol":
-			_volatility.position = pos
+			_vol_grid = grid
 			continue
 		var elem: ElementNode = ELEMENT_SCENE.instantiate()
 		add_child(elem)
-		elem.setup(type, pos)
+		elem.setup(type, Vector2.ZERO)
 		_elements.append(elem)
+		_elem_grid.append(grid)
 		elem_by_id[int(e.get("id", _elements.size() - 1))] = _elements.size() - 1
 
-	# Operations
+	# Operations — se crean con posiciones provisionales para fijar su rotación;
+	# _layout_board() las recoloca después.
 	for o: Dictionary in ops_data:
 		var from_id: int = o.get("from", 0)
 		var to_id: int = o.get("to", 1)
@@ -175,12 +318,10 @@ func _setup_elements_from_level() -> void:
 			continue
 		var idx_a: int = elem_by_id[from_id]
 		var idx_b: int = elem_by_id[to_id]
-		var pos_a: Vector2 = (_elements[idx_a] as ElementNode).position
-		var pos_b: Vector2 = (_elements[idx_b] as ElementNode).position
 		var op: OperationNode = OPERATION_SCENE.instantiate()
 		add_child(op)
 		op.z_index = 1
-		op.setup_between(o.get("type", "gt"), pos_a, pos_b, idx_a, idx_b)
+		op.setup_between(o.get("type", "gt"), _elem_grid[idx_a], _elem_grid[idx_b], idx_a, idx_b)
 		_operations.append(op)
 
 func _setup_dice_from_level() -> void:
@@ -189,42 +330,39 @@ func _setup_dice_from_level() -> void:
 	for color: String in dice_counts:
 		for _i in dice_counts[color]:
 			colors.append(color)
+	_spawn_dice(colors)
+
+func _spawn_dice(colors: Array) -> void:
 	colors.shuffle()
-	var n := float(colors.size())
-	var die_spacing := minf(90.0, _screen_w * 0.92 / n)
-	var start_x := (_screen_w - die_spacing * n) * 0.5 + die_spacing * 0.5
-	var dice_y := _screen_h - DICE_BOTTOM_MARGIN
+	var die_size := minf(MAX_DIE_SPACING, LevelPage.DESIGN_SIZE.x * 0.92 / colors.size()) * DIE_SIZE_RATIO
 	for i in colors.size():
 		var die: DieNode = DIE_SCENE.instantiate()
 		add_child(die)
-		var pos := Vector2(start_x + die_spacing * i, dice_y)
-		die.setup(colors[i], randi_range(1, 6), pos, die_spacing * DIE_SIZE_RATIO)
+		die.setup(colors[i], randi_range(1, 6), Vector2.ZERO, die_size)
 		die.z_index = 1
 		die.animate_appear(i * 0.08)
 		_dice.append(die)
 
 func _setup_reroll_button() -> void:
 	_reroll_btn = Button.new()
-	_reroll_btn.text = "↺  Relanzar"
-	_reroll_btn.add_theme_font_size_override("font_size", 28)
-	_reroll_btn.add_theme_color_override("font_color", Color.WHITE)
-	var style := StyleBoxFlat.new()
-	style.bg_color = Color(0.15, 0.15, 0.35, 0.92)
-	style.corner_radius_top_left = 12
-	style.corner_radius_top_right = 12
-	style.corner_radius_bottom_left = 12
-	style.corner_radius_bottom_right = 12
-	style.content_margin_left = 16
-	style.content_margin_right = 16
+	_reroll_btn.text = "Reroll"
+	_reroll_btn.add_theme_font_size_override("font_size", 34)
+	for color_name: String in ["font_color", "font_hover_color", "font_pressed_color", "font_focus_color"]:
+		_reroll_btn.add_theme_color_override(color_name, NOTE_TEXT_COLOR)
+	var style := _note_style(16, 4)
 	_reroll_btn.add_theme_stylebox_override("normal", style)
-	var style_hover := style.duplicate() as StyleBoxFlat
-	style_hover.bg_color = Color(0.25, 0.25, 0.5, 0.95)
+	_reroll_btn.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
+	var style_hover := style.duplicate() as StyleBoxTexture
+	style_hover.modulate_color = Color(1.15, 1.15, 1.15, 1.0)
 	_reroll_btn.add_theme_stylebox_override("hover", style_hover)
+	var style_pressed := style.duplicate() as StyleBoxTexture
+	style_pressed.modulate_color = Color(0.8, 0.8, 0.8, 1.0)
+	_reroll_btn.add_theme_stylebox_override("pressed", style_pressed)
+	var style_disabled := style.duplicate() as StyleBoxTexture
+	style_disabled.modulate_color = Color(0.6, 0.6, 0.6, 1.0)
+	_reroll_btn.add_theme_stylebox_override("disabled", style_disabled)
+	_reroll_btn.add_theme_color_override("font_disabled_color", NOTE_DETAIL_COLOR.darkened(0.3))
 	_reroll_btn.size = REROLL_BTN_SIZE
-	var dice_top := _screen_h - DICE_BOTTOM_MARGIN - DieNode.DEFAULT_SIZE * 0.5
-	_reroll_btn.position = Vector2(
-		(_screen_w - REROLL_BTN_SIZE.x) * 0.5,
-		dice_top - REROLL_BTN_GAP - REROLL_BTN_SIZE.y)
 	_reroll_btn.pressed.connect(_on_reroll_pressed)
 	add_child(_reroll_btn)
 
@@ -292,11 +430,25 @@ func _try_drop(drop_pos: Vector2) -> void:
 		die.position = elem.position
 		die.home_position = elem.position
 		die.is_placed = true
+		die.scale = elem.scale
+		_placed_on[die] = elem
 		elem.placed_die_value = die.die_value
 		_apply_element_effect(elem.element_type, die.die_value)
 		return
 
 	die.animate_return()
+
+# Se llama cuando el efecto del dado colocado ya se ha resuelto: si todos los
+# elementos tienen dado y la poción no ha explotado ni se ha neutralizado, se gana.
+func _check_potion_ready() -> void:
+	if not _game_over and _all_elements_filled():
+		_end_game_after(Outcome.POTION_READY, 0.4)
+
+func _all_elements_filled() -> bool:
+	for elem: ElementNode in _elements:
+		if elem.placed_die_value == -1:
+			return false
+	return true
 
 func _highlight_valid_targets(die: DieNode) -> void:
 	for i in _elements.size():
@@ -380,13 +532,14 @@ func _apply_element_effect(element_type: String, placed_value: int) -> void:
 		"fire", "water", "grass":
 			_enter_selection_mode(element_type, placed_value)
 		"salt":
-			pass
+			_check_potion_ready()
 
 func _enter_selection_mode(effect: String, placed_value: int) -> void:
 	_state = State.SELECTING_TARGET
 	_pending_effect = effect
 	_pending_placed_value = placed_value
 	_overlay.visible = true
+	_show_power_hint(effect, placed_value)
 	for die: DieNode in _dice:
 		if not die.is_placed:
 			die.set_highlighted(true)
@@ -397,6 +550,7 @@ func _enter_selection_mode(effect: String, placed_value: int) -> void:
 func _exit_selection_mode() -> void:
 	_state = State.IDLE
 	_overlay.visible = false
+	_power_hint.visible = false
 	for die: DieNode in _dice:
 		die.set_highlighted(false)
 		if not die.is_placed:
@@ -421,6 +575,7 @@ func _apply_to_die(die: DieNode) -> void:
 	die.update_value_display()
 	if flipped:
 		_increase_volatility()
+	_check_potion_ready()
 
 func _apply_to_volatility() -> void:
 	_exit_selection_mode()
@@ -432,13 +587,10 @@ func _apply_to_volatility() -> void:
 	_volatility.die_value = new_value
 	_volatility.update_value_display()
 	if new_value > 6:
-		var t := create_tween()
-		t.tween_interval(0.4)
-		t.tween_callback(_show_game_over.bind(true))
+		_end_game_after(Outcome.EXPLOSION, 0.4)
 	elif new_value < 1:
-		var t := create_tween()
-		t.tween_interval(0.4)
-		t.tween_callback(_show_game_over.bind(false))
+		_end_game_after(Outcome.SOUP, 0.4)
+	_check_potion_ready()
 
 func _on_reroll_pressed() -> void:
 	if _game_over:
@@ -453,11 +605,16 @@ func _increase_volatility() -> void:
 	_volatility.die_value += 1
 	_volatility.update_value_display()
 	if _volatility.die_value > 6:
-		var t := create_tween()
-		t.tween_interval(0.35)
-		t.tween_callback(_show_game_over.bind(true))
+		_end_game_after(Outcome.EXPLOSION, 0.35)
 
-func _show_game_over(is_explosion: bool) -> void:
+# Bloquea la partida ya y muestra el resultado tras una pausa breve.
+func _end_game_after(outcome: Outcome, delay: float) -> void:
+	_game_over = true
+	var t := create_tween()
+	t.tween_interval(delay)
+	t.tween_callback(_show_game_over.bind(outcome))
+
+func _show_game_over(outcome: Outcome) -> void:
 	_game_over = true
 	if _reroll_btn:
 		_reroll_btn.disabled = true
@@ -471,50 +628,65 @@ func _show_game_over(is_explosion: bool) -> void:
 	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
 	layer.add_child(bg)
 
+	# Centrado con anclas para que se adapte a cualquier tamaño de pantalla.
+	var center := CenterContainer.new()
+	center.set_anchors_preset(Control.PRESET_FULL_RECT)
+	layer.add_child(center)
+
+	var content_w := LevelPage.DESIGN_SIZE.x * 0.85
+	var box := VBoxContainer.new()
+	box.custom_minimum_size = Vector2(content_w, 0)
+	box.add_theme_constant_override("separation", 48)
+	center.add_child(box)
+
 	var title := Label.new()
-	title.text = "¡La poción es inestable!" if is_explosion else "¡Sopa repugnante!"
+	match outcome:
+		Outcome.EXPLOSION: title.text = "The potion is unstable!"
+		Outcome.SOUP: title.text = "Disgusting soup!"
+		Outcome.POTION_READY: title.text = "The potion is ready!"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	title.add_theme_font_size_override("font_size", 54)
+	title.custom_minimum_size = Vector2(content_w, 0)
+	title.add_theme_font_size_override("font_size", 58)
 	title.add_theme_color_override("font_color", Color.WHITE)
-	title.size = Vector2(_screen_w * 0.85, 150)
-	title.position = Vector2(_screen_w * 0.075, _screen_h * 0.28)
-	layer.add_child(title)
+	box.add_child(title)
 
 	var msg := Label.new()
-	msg.text = "Limpia el laboratorio,\nrepara lo que haya explotado\ny vuelve a empezar." \
-		if is_explosion else \
-		"La poción se ha neutralizado.\nAcabas de preparar\nuna sopa repugnante."
+	match outcome:
+		Outcome.EXPLOSION:
+			msg.text = "Clean up the lab,\nfix whatever blew up\nand start over."
+		Outcome.SOUP:
+			msg.text = "The potion has been neutralized.\nYou just brewed\na disgusting soup."
+		Outcome.POTION_READY:
+			msg.text = "Every ingredient is in place.\nThe Poison of Black Death\nis ready."
 	msg.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	msg.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	msg.add_theme_font_size_override("font_size", 32)
+	msg.custom_minimum_size = Vector2(content_w, 0)
+	msg.add_theme_font_size_override("font_size", 36)
 	msg.add_theme_color_override("font_color", Color(0.85, 0.85, 0.85, 1.0))
-	msg.size = Vector2(_screen_w * 0.85, 220)
-	msg.position = Vector2(_screen_w * 0.075, _screen_h * 0.43)
-	layer.add_child(msg)
+	box.add_child(msg)
 
 	var btn := Button.new()
-	btn.text = "Volver a empezar"
-	btn.add_theme_font_size_override("font_size", 34)
-	btn.add_theme_color_override("font_color", Color.WHITE)
-	var style := StyleBoxFlat.new()
-	style.bg_color = Color(0.25, 0.12, 0.05, 0.95)
-	style.corner_radius_top_left = 14
-	style.corner_radius_top_right = 14
-	style.corner_radius_bottom_left = 14
-	style.corner_radius_bottom_right = 14
-	style.content_margin_left = 20
-	style.content_margin_right = 20
+	btn.text = "Play again" if outcome == Outcome.POTION_READY else "Start over"
+	btn.add_theme_font_size_override("font_size", 38)
+	for color_name: String in ["font_color", "font_hover_color", "font_pressed_color", "font_focus_color"]:
+		btn.add_theme_color_override(color_name, NOTE_TEXT_COLOR)
+	var style := _note_style(20, 8)
 	btn.add_theme_stylebox_override("normal", style)
-	var style_hover := style.duplicate() as StyleBoxFlat
-	style_hover.bg_color = Color(0.45, 0.22, 0.08, 0.98)
+	btn.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
+	var style_hover := style.duplicate() as StyleBoxTexture
+	style_hover.modulate_color = Color(1.15, 1.15, 1.15, 1.0)
 	btn.add_theme_stylebox_override("hover", style_hover)
-	btn.size = Vector2(_screen_w * 0.65, 76)
-	btn.position = Vector2(_screen_w * 0.175, _screen_h * 0.63)
+	btn.custom_minimum_size = Vector2(LevelPage.DESIGN_SIZE.x * 0.65, 76)
+	btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	btn.pressed.connect(func(): get_tree().reload_current_scene())
-	layer.add_child(btn)
+	box.add_child(btn)
 
 func _event_pos(event: InputEvent) -> Vector2:
+	# En pantallas táctiles Godot también emite un evento de ratón emulado por
+	# cada toque; lo ignoramos para no procesar el mismo toque dos veces.
+	if event is InputEventMouse and event.device == InputEvent.DEVICE_ID_EMULATION:
+		return Vector2.INF
 	if event is InputEventMouseButton or event is InputEventMouseMotion:
 		return event.position
 	if event is InputEventScreenTouch or event is InputEventScreenDrag:
