@@ -1,0 +1,208 @@
+[gd_scene format=3 uid="uid://c8tutorial001"]
+
+[ext_resource type="Script" path="res://scripts/tutorial.gd" id="1_tut"]
+[ext_resource type="Texture2D" path="res://assets/ui/note_panel.png" id="2_note"]
+[ext_resource type="Texture2D" path="res://assets/dice/red_6.png" id="3_red"]
+[ext_resource type="Texture2D" path="res://assets/dice/blue_6.png" id="4_blue"]
+[ext_resource type="Texture2D" path="res://assets/dice/green_6.png" id="5_green"]
+[ext_resource type="Texture2D" path="res://assets/dice/white_6.png" id="6_white"]
+
+[sub_resource type="StyleBoxTexture" id="StyleBoxTexture_panel"]
+content_margin_left = 36.0
+content_margin_top = 32.0
+content_margin_right = 36.0
+content_margin_bottom = 32.0
+texture = ExtResource("2_note")
+texture_margin_left = 12.0
+texture_margin_top = 12.0
+texture_margin_right = 12.0
+texture_margin_bottom = 12.0
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_button"]
+content_margin_left = 24.0
+content_margin_top = 6.0
+content_margin_right = 24.0
+content_margin_bottom = 6.0
+bg_color = Color(0.97, 0.93, 0.83, 1)
+corner_radius_top_left = 10
+corner_radius_top_right = 10
+corner_radius_bottom_right = 10
+corner_radius_bottom_left = 10
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_button_hover"]
+content_margin_left = 24.0
+content_margin_top = 6.0
+content_margin_right = 24.0
+content_margin_bottom = 6.0
+bg_color = Color(1, 0.98, 0.92, 1)
+corner_radius_top_left = 10
+corner_radius_top_right = 10
+corner_radius_bottom_right = 10
+corner_radius_bottom_left = 10
+
+[node name="Tutorial" type="CanvasLayer"]
+layer = 15
+script = ExtResource("1_tut")
+
+[node name="Root" type="Control" parent="."]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Dim" type="ColorRect" parent="Root"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0, 0, 0, 0.6)
+
+[node name="Center" type="CenterContainer" parent="Root"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="Panel" type="PanelContainer" parent="Root/Center"]
+custom_minimum_size = Vector2(650, 0)
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleBoxTexture_panel")
+
+[node name="Content" type="VBoxContainer" parent="Root/Center/Panel"]
+layout_mode = 2
+theme_override_constants/separation = 18
+
+[node name="Title" type="Label" parent="Root/Center/Panel/Content"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.99, 0.95, 0.86, 1)
+theme_override_font_sizes/font_size = 52
+text = "How to brew"
+horizontal_alignment = 1
+
+[node name="Rule1" type="Label" parent="Root/Center/Panel/Content"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.99, 0.95, 0.86, 1)
+theme_override_font_sizes/font_size = 27
+text = "Drag each die onto an ingredient of its color. After the first one, a die can only go next to a filled ingredient, and the symbol between them must hold."
+autowrap_mode = 3
+
+[node name="Rule2" type="Label" parent="Root/Center/Panel/Content"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.99, 0.95, 0.86, 1)
+theme_override_font_sizes/font_size = 27
+text = "Fill every ingredient to finish the potion."
+autowrap_mode = 3
+
+[node name="Rule3" type="Label" parent="Root/Center/Panel/Content"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.99, 0.95, 0.86, 1)
+theme_override_font_sizes/font_size = 27
+text = "Volatility rises when a die wraps past 6 or 1, and every time you reroll. Over 6 the potion explodes; below 1 it turns into soup."
+autowrap_mode = 3
+
+[node name="Dice" type="VBoxContainer" parent="Root/Center/Panel/Content"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="RedRow" type="HBoxContainer" parent="Root/Center/Panel/Content/Dice"]
+layout_mode = 2
+theme_override_constants/separation = 16
+
+[node name="Icon" type="TextureRect" parent="Root/Center/Panel/Content/Dice/RedRow"]
+custom_minimum_size = Vector2(52, 52)
+layout_mode = 2
+texture = ExtResource("3_red")
+expand_mode = 1
+stretch_mode = 5
+
+[node name="Text" type="Label" parent="Root/Center/Panel/Content/Dice/RedRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.88, 0.93, 0.9, 1)
+theme_override_font_sizes/font_size = 26
+text = "Fire: add its value to a die or to volatility."
+vertical_alignment = 1
+autowrap_mode = 3
+
+[node name="BlueRow" type="HBoxContainer" parent="Root/Center/Panel/Content/Dice"]
+layout_mode = 2
+theme_override_constants/separation = 16
+
+[node name="Icon" type="TextureRect" parent="Root/Center/Panel/Content/Dice/BlueRow"]
+custom_minimum_size = Vector2(52, 52)
+layout_mode = 2
+texture = ExtResource("4_blue")
+expand_mode = 1
+stretch_mode = 5
+
+[node name="Text" type="Label" parent="Root/Center/Panel/Content/Dice/BlueRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.88, 0.93, 0.9, 1)
+theme_override_font_sizes/font_size = 26
+text = "Water: subtract its value from a die or from volatility."
+vertical_alignment = 1
+autowrap_mode = 3
+
+[node name="GreenRow" type="HBoxContainer" parent="Root/Center/Panel/Content/Dice"]
+layout_mode = 2
+theme_override_constants/separation = 16
+
+[node name="Icon" type="TextureRect" parent="Root/Center/Panel/Content/Dice/GreenRow"]
+custom_minimum_size = Vector2(52, 52)
+layout_mode = 2
+texture = ExtResource("5_green")
+expand_mode = 1
+stretch_mode = 5
+
+[node name="Text" type="Label" parent="Root/Center/Panel/Content/Dice/GreenRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.88, 0.93, 0.9, 1)
+theme_override_font_sizes/font_size = 26
+text = "Soil: flip a die to its opposite face."
+vertical_alignment = 1
+autowrap_mode = 3
+
+[node name="WhiteRow" type="HBoxContainer" parent="Root/Center/Panel/Content/Dice"]
+layout_mode = 2
+theme_override_constants/separation = 16
+
+[node name="Icon" type="TextureRect" parent="Root/Center/Panel/Content/Dice/WhiteRow"]
+custom_minimum_size = Vector2(52, 52)
+layout_mode = 2
+texture = ExtResource("6_white")
+expand_mode = 1
+stretch_mode = 5
+
+[node name="Text" type="Label" parent="Root/Center/Panel/Content/Dice/WhiteRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.88, 0.93, 0.9, 1)
+theme_override_font_sizes/font_size = 26
+text = "Salt: no power, it just fills its ingredient."
+vertical_alignment = 1
+autowrap_mode = 3
+
+[node name="CloseButton" type="Button" parent="Root/Center/Panel/Content"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(260, 64)
+layout_mode = 2
+size_flags_horizontal = 4
+theme_override_colors/font_color = Color(0.1, 0.33, 0.35, 1)
+theme_override_colors/font_hover_color = Color(0.1, 0.33, 0.35, 1)
+theme_override_colors/font_pressed_color = Color(0.1, 0.33, 0.35, 1)
+theme_override_colors/font_focus_color = Color(0.1, 0.33, 0.35, 1)
+theme_override_font_sizes/font_size = 34
+theme_override_styles/normal = SubResource("StyleBoxFlat_button")
+theme_override_styles/hover = SubResource("StyleBoxFlat_button_hover")
+theme_override_styles/pressed = SubResource("StyleBoxFlat_button")
+theme_override_styles/focus = SubResource("StyleBoxFlat_button")
+text = "Got it!"

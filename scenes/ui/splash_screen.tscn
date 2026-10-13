@@ -1,0 +1,38 @@
+[gd_scene format=3 uid="uid://c8splashscr01"]
+
+[ext_resource type="Script" path="res://scripts/splash_screen.gd" id="1_splash"]
+[ext_resource type="Texture2D" path="res://assets/ui/splash.png" id="2_image"]
+
+[node name="SplashScreen" type="CanvasLayer"]
+layer = 20
+script = ExtResource("1_splash")
+
+[node name="Root" type="Control" parent="."]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Background" type="ColorRect" parent="Root"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+color = Color(0.024, 0.376, 0.392, 1)
+
+[node name="Image" type="TextureRect" parent="Root"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+texture = ExtResource("2_image")
+expand_mode = 1
+stretch_mode = 5
