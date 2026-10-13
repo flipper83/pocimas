@@ -1,0 +1,46 @@
+[gd_scene format=3 uid="uid://c8lvlpage01"]
+
+[ext_resource type="Script" path="res://scripts/level_page.gd" id="1_page"]
+[ext_resource type="Texture2D" path="res://assets/ui/header.png" id="2_header"]
+[ext_resource type="Texture2D" path="res://assets/ui/border_band.png" id="3_band"]
+[ext_resource type="Texture2D" path="res://assets/ui/illustration.png" id="4_ill"]
+
+[node name="LevelPage" type="Node2D"]
+z_index = -5
+script = ExtResource("1_page")
+
+[node name="Header" type="Sprite2D" parent="."]
+position = Vector2(360, 124)
+scale = Vector2(0.6525, 0.6525)
+texture = ExtResource("2_header")
+
+[node name="TopBand" type="Sprite2D" parent="."]
+position = Vector2(360, 254)
+scale = Vector2(0.656, 0.656)
+texture = ExtResource("3_band")
+
+[node name="Illustration" type="Sprite2D" parent="."]
+position = Vector2(190, 335)
+scale = Vector2(0.5, 0.5)
+texture = ExtResource("4_ill")
+
+[node name="LevelName" type="Label" parent="."]
+offset_left = 340.0
+offset_top = 284.0
+offset_right = 700.0
+offset_bottom = 388.0
+theme_override_colors/font_color = Color(0.17, 0.07, 0.05, 1)
+theme_override_font_sizes/font_size = 68
+text = "Candles"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="MiddleBand" type="Sprite2D" parent="."]
+position = Vector2(360, 416)
+scale = Vector2(0.656, 0.656)
+texture = ExtResource("3_band")
+
+[node name="BottomBand" type="Sprite2D" parent="."]
+position = Vector2(360, 1046)
+scale = Vector2(0.656, 0.656)
+texture = ExtResource("3_band")

@@ -64,7 +64,7 @@ func _draw() -> void:
 	if _glow <= 0.0 or _highlight == Highlight.NONE:
 		return
 	var color: Color = HIGHLIGHT_COLORS[_highlight]
-	var half := get_hit_rect().size * 0.5 + Vector2(HIGHLIGHT_PADDING, HIGHLIGHT_PADDING)
+	var half := _local_half_size() + Vector2(HIGHLIGHT_PADDING, HIGHLIGHT_PADDING)
 	var rect := Rect2(-half, half * 2.0)
 	var fill := color
 	fill.a = 0.3 * _glow
@@ -73,8 +73,12 @@ func _draw() -> void:
 	outline.a = _glow
 	draw_rect(rect, outline, false, 5.0)
 
-func get_hit_rect() -> Rect2:
+# Medio tamaño del marco en coordenadas locales (sin la escala del nodo).
+func _local_half_size() -> Vector2:
 	if not _frame or not _frame.texture:
-		return Rect2(position - Vector2(44, 45), Vector2(88, 90))
-	var half := _frame.texture.get_size() * SPRITE_SCALE * 0.5
+		return Vector2(44, 45)
+	return _frame.texture.get_size() * SPRITE_SCALE * 0.5
+
+func get_hit_rect() -> Rect2:
+	var half := _local_half_size() * scale
 	return Rect2(position - half, half * 2.0)

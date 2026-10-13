@@ -4,6 +4,7 @@
 [ext_resource type="Texture2D" path="res://assets/frames/frame_volatility.png" id="2_back"]
 [ext_resource type="Texture2D" path="res://assets/dice/black_1.png" id="3_die"]
 [ext_resource type="Texture2D" path="res://assets/ingredients/volatility.png" id="4_icon"]
+[ext_resource type="Texture2D" path="res://assets/ui/volatility_tag.png" id="5_tag"]
 
 [node name="Volatility" type="Node2D"]
 script = ExtResource("1_vol")
@@ -16,3 +17,20 @@ texture = ExtResource("4_icon")
 
 [node name="DieSprite" type="Sprite2D" parent="."]
 texture = ExtResource("3_die")
+
+[node name="Tag" type="Sprite2D" parent="."]
+position = Vector2(0, -84)
+rotation = -0.06
+scale = Vector2(1.15, 1.15)
+texture = ExtResource("5_tag")
+
+[node name="TagLabel" type="Label" parent="Tag"]
+offset_left = -54.0
+offset_top = -20.0
+offset_right = 54.0
+offset_bottom = 18.0
+theme_override_colors/font_color = Color(0.99, 0.95, 0.88, 1)
+theme_override_font_sizes/font_size = 22
+text = "Volatility"
+horizontal_alignment = 1
+vertical_alignment = 1

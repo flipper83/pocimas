@@ -2,6 +2,7 @@ class_name LevelLoader
 
 # Level JSON format:
 # {
+#   "name": "Candles",
 #   "dice": {"red": 2, "white": 1, "green": 2, "blue": 2},
 #   "grid_unit": 110,
 #   "elements": [{"id":0, "type":"fire", "gx":2, "gy":1}, ...],
