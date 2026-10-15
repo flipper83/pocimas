@@ -22,6 +22,8 @@ const MAX_DIE_SPACING := 90.0
 const REROLL_BTN_SIZE := Vector2(240, 64)
 const REROLL_BTN_GAP := 20.0  # separación entre el botón y la parte superior de los dados
 const HELP_BTN_SIZE := Vector2(64, 64)
+const CANCEL_BTN_SIZE := Vector2(170, 64)
+const CANCEL_BTN_GAP := 20.0  # separación entre Cancel y el botón de relanzar
 const DIE_SIZE_RATIO := 0.9  # tamaño del dado respecto a la separación entre dados
 const POWER_HINT_TOP := 40.0
 const NOTE_TEXT_COLOR := Color(0.99, 0.95, 0.86, 1.0)
@@ -35,7 +37,7 @@ const _RANDOM_VOL_GRID := Vector2(8, 3)
 var _level_data: Dictionary = {}
 var _page: LevelPage = null
 
-enum State { IDLE, SELECTING_TARGET }
+enum State { IDLE, SELECTING_TARGET, SELECTING_REROLL }
 enum Outcome { EXPLOSION, SOUP, POTION_READY }
 
 var _background: Sprite2D = null
@@ -44,6 +46,8 @@ var _elements: Array = []
 var _operations: Array = []
 var _volatility: VolatilityNode = null
 var _reroll_btn: Button = null
+var _cancel_btn: Button = null
+var _reroll_selection: Array[DieNode] = []
 var _dragged_die: DieNode = null
 var _drag_offset: Vector2
 var _state: State = State.IDLE
@@ -163,6 +167,9 @@ func _layout() -> void:
 	var dice_top := dice_y - _die_spacing() * DIE_SIZE_RATIO * 0.5
 	var reroll_top := dice_top - REROLL_BTN_GAP - REROLL_BTN_SIZE.y
 	_reroll_btn.position = Vector2(center_x - REROLL_BTN_SIZE.x * 0.5, reroll_top)
+	_cancel_btn.position = Vector2(
+		_reroll_btn.position.x - CANCEL_BTN_GAP - CANCEL_BTN_SIZE.x,
+		reroll_top + (REROLL_BTN_SIZE.y - CANCEL_BTN_SIZE.y) * 0.5)
 	var column_right := center_x + minf(view.size.x, LevelPage.DESIGN_SIZE.x) * 0.5
 	_help_btn.position = Vector2(
 		column_right - BOARD_SIDE_MARGIN - HELP_BTN_SIZE.x,
@@ -434,6 +441,13 @@ func _setup_reroll_button() -> void:
 	_reroll_btn.pressed.connect(_on_reroll_pressed)
 	add_child(_reroll_btn)
 
+	_cancel_btn = _make_note_button("Cancel", 34, 16)
+	_cancel_btn.size = CANCEL_BTN_SIZE
+	_cancel_btn.z_index = 6
+	_cancel_btn.visible = false
+	_cancel_btn.pressed.connect(_exit_reroll_selection)
+	add_child(_cancel_btn)
+
 func _setup_help_button() -> void:
 	_help_btn = _make_note_button("?", 40, 4)
 	_help_btn.size = HELP_BTN_SIZE
@@ -460,6 +474,14 @@ func _input(event: InputEvent) -> void:
 			for die: DieNode in _dice:
 				if not die.is_placed and die.get_hit_rect().has_point(pos):
 					_apply_to_die(die)
+					break
+		return
+
+	if _state == State.SELECTING_REROLL:
+		if _is_press(event):
+			for die: DieNode in _reroll_candidates():
+				if die.get_hit_rect().has_point(pos):
+					_toggle_reroll_die(die)
 					break
 		return
 
@@ -673,10 +695,69 @@ func _apply_to_volatility() -> void:
 func _on_reroll_pressed() -> void:
 	if _game_over or _intro_active:
 		return
+	match _state:
+		State.IDLE:
+			_enter_reroll_selection(_reroll_candidates())
+		State.SELECTING_REROLL:
+			var selected := _reroll_selection.duplicate()
+			_exit_reroll_selection()
+			_reroll_dice(selected)
+
+func _reroll_candidates() -> Array[DieNode]:
+	var result: Array[DieNode] = []
 	for die: DieNode in _dice:
 		if not die.is_placed:
-			die.die_value = randi_range(1, 6)
-			die.update_value_display()
+			result.append(die)
+	return result
+
+# Empiezan todos marcados; el jugador toca los que quiere conservar.
+func _enter_reroll_selection(candidates: Array[DieNode]) -> void:
+	_state = State.SELECTING_REROLL
+	_reroll_selection = candidates.duplicate()
+	_overlay.visible = true
+	_power_hint_title.text = "Choose the dice to reroll"
+	_power_hint_detail.text = "Tap a die to keep it\nRerolling raises volatility by 1"
+	_power_hint.visible = true
+	_power_hint.reset_size()
+	_power_hint.modulate.a = 0.0
+	create_tween().tween_property(_power_hint, "modulate:a", 1.0, 0.15)
+	for die: DieNode in candidates:
+		_set_reroll_marked(die, true)
+	_reroll_btn.text = "Roll"
+	_reroll_btn.z_index = 6
+	_reroll_btn.disabled = _reroll_selection.is_empty()
+	_cancel_btn.visible = true
+
+func _exit_reroll_selection() -> void:
+	_state = State.IDLE
+	_overlay.visible = false
+	_power_hint.visible = false
+	for die: DieNode in _reroll_candidates():
+		_set_reroll_marked(die, false)
+	_reroll_selection.clear()
+	_reroll_btn.text = "Reroll"
+	_reroll_btn.z_index = 0
+	_reroll_btn.disabled = false
+	_cancel_btn.visible = false
+
+func _toggle_reroll_die(die: DieNode) -> void:
+	var marked := not _reroll_selection.has(die)
+	if marked:
+		_reroll_selection.append(die)
+	else:
+		_reroll_selection.erase(die)
+	_set_reroll_marked(die, marked)
+	_reroll_btn.disabled = _reroll_selection.is_empty()
+
+# Los marcados quedan resaltados sobre el overlay; los desmarcados, debajo (oscurecidos).
+func _set_reroll_marked(die: DieNode, marked: bool) -> void:
+	die.set_highlighted(marked)
+	die.z_index = 6 if marked else 1
+
+func _reroll_dice(dice: Array[DieNode]) -> void:
+	for die: DieNode in dice:
+		die.die_value = randi_range(1, 6)
+		die.update_value_display()
 	_increase_volatility()
 
 func _increase_volatility() -> void:
