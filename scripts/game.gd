@@ -697,12 +697,7 @@ func _on_reroll_pressed() -> void:
 		return
 	match _state:
 		State.IDLE:
-			var candidates := _reroll_candidates()
-			# Con un solo dado libre no hay nada que elegir.
-			if candidates.size() <= 1:
-				_reroll_dice(candidates)
-			else:
-				_enter_reroll_selection(candidates)
+			_enter_reroll_selection(_reroll_candidates())
 		State.SELECTING_REROLL:
 			var selected := _reroll_selection.duplicate()
 			_exit_reroll_selection()
