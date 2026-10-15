@@ -1,6 +1,6 @@
 [gd_scene format=3 uid="uid://c8tutorial001"]
 
-[ext_resource type="Script" path="res://scripts/tutorial.gd" id="1_tut"]
+[ext_resource type="Script" path="res://scripts/note_popup.gd" id="1_popup"]
 [ext_resource type="Texture2D" path="res://assets/ui/note_panel.png" id="2_note"]
 [ext_resource type="Texture2D" path="res://assets/dice/red_6.png" id="3_red"]
 [ext_resource type="Texture2D" path="res://assets/dice/blue_6.png" id="4_blue"]
@@ -42,7 +42,7 @@ corner_radius_bottom_left = 10
 
 [node name="Tutorial" type="CanvasLayer"]
 layer = 15
-script = ExtResource("1_tut")
+script = ExtResource("1_popup")
 
 [node name="Root" type="Control" parent="."]
 layout_mode = 3
@@ -71,58 +71,68 @@ grow_vertical = 2
 mouse_filter = 2
 
 [node name="Panel" type="PanelContainer" parent="Root/Center"]
+unique_name_in_owner = true
 custom_minimum_size = Vector2(650, 0)
 layout_mode = 2
 theme_override_styles/panel = SubResource("StyleBoxTexture_panel")
 
-[node name="Content" type="VBoxContainer" parent="Root/Center/Panel"]
+[node name="Layout" type="VBoxContainer" parent="Root/Center/Panel"]
+unique_name_in_owner = true
 layout_mode = 2
 theme_override_constants/separation = 18
 
-[node name="Title" type="Label" parent="Root/Center/Panel/Content"]
+[node name="Title" type="Label" parent="Root/Center/Panel/Layout"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.99, 0.95, 0.86, 1)
 theme_override_font_sizes/font_size = 52
-text = "How to brew"
+text = "How to Brew"
 horizontal_alignment = 1
 
-[node name="Rule1" type="Label" parent="Root/Center/Panel/Content"]
+[node name="Scroll" type="ScrollContainer" parent="Root/Center/Panel/Layout"]
+unique_name_in_owner = true
+layout_mode = 2
+horizontal_scroll_mode = 0
+
+[node name="Content" type="VBoxContainer" parent="Root/Center/Panel/Layout/Scroll"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+mouse_filter = 1
+theme_override_constants/separation = 18
+
+[node name="Paragraph1" type="Label" parent="Root/Center/Panel/Layout/Scroll/Content"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.99, 0.95, 0.86, 1)
 theme_override_font_sizes/font_size = 27
-text = "Drag each die onto an ingredient of its color. After the first one, a die can only go next to a filled ingredient, and the symbol between them must hold."
+text = "Drag each ingredient (die) onto a space of its color. After you place the first one, you must place all the others on a space connected by a symbol to another die. The symbol between them must hold."
 autowrap_mode = 3
 
-[node name="Rule2" type="Label" parent="Root/Center/Panel/Content"]
+[node name="Paragraph2" type="Label" parent="Root/Center/Panel/Layout/Scroll/Content"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.99, 0.95, 0.86, 1)
 theme_override_font_sizes/font_size = 27
-text = "Fill every ingredient to finish the potion."
+text = "Each time you add a die to the potion, you must apply its effect to another die you haven't placed yet, or to the volatility die."
 autowrap_mode = 3
 
-[node name="Rule3" type="Label" parent="Root/Center/Panel/Content"]
+[node name="Dice" type="VBoxContainer" parent="Root/Center/Panel/Layout/Scroll/Content"]
 layout_mode = 2
-theme_override_colors/font_color = Color(0.99, 0.95, 0.86, 1)
-theme_override_font_sizes/font_size = 27
-text = "Volatility rises when a die wraps past 6 or 1, and every time you reroll. Over 6 the potion explodes; below 1 it turns into soup."
-autowrap_mode = 3
-
-[node name="Dice" type="VBoxContainer" parent="Root/Center/Panel/Content"]
-layout_mode = 2
+mouse_filter = 1
 theme_override_constants/separation = 10
 
-[node name="RedRow" type="HBoxContainer" parent="Root/Center/Panel/Content/Dice"]
+[node name="RedRow" type="HBoxContainer" parent="Root/Center/Panel/Layout/Scroll/Content/Dice"]
 layout_mode = 2
+mouse_filter = 1
 theme_override_constants/separation = 16
 
-[node name="Icon" type="TextureRect" parent="Root/Center/Panel/Content/Dice/RedRow"]
+[node name="Icon" type="TextureRect" parent="Root/Center/Panel/Layout/Scroll/Content/Dice/RedRow"]
 custom_minimum_size = Vector2(52, 52)
 layout_mode = 2
+mouse_filter = 1
 texture = ExtResource("3_red")
 expand_mode = 1
 stretch_mode = 5
 
-[node name="Text" type="Label" parent="Root/Center/Panel/Content/Dice/RedRow"]
+[node name="Text" type="Label" parent="Root/Center/Panel/Layout/Scroll/Content/Dice/RedRow"]
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_colors/font_color = Color(0.88, 0.93, 0.9, 1)
@@ -131,18 +141,20 @@ text = "Fire: add its value to a die or to volatility."
 vertical_alignment = 1
 autowrap_mode = 3
 
-[node name="BlueRow" type="HBoxContainer" parent="Root/Center/Panel/Content/Dice"]
+[node name="BlueRow" type="HBoxContainer" parent="Root/Center/Panel/Layout/Scroll/Content/Dice"]
 layout_mode = 2
+mouse_filter = 1
 theme_override_constants/separation = 16
 
-[node name="Icon" type="TextureRect" parent="Root/Center/Panel/Content/Dice/BlueRow"]
+[node name="Icon" type="TextureRect" parent="Root/Center/Panel/Layout/Scroll/Content/Dice/BlueRow"]
 custom_minimum_size = Vector2(52, 52)
 layout_mode = 2
+mouse_filter = 1
 texture = ExtResource("4_blue")
 expand_mode = 1
 stretch_mode = 5
 
-[node name="Text" type="Label" parent="Root/Center/Panel/Content/Dice/BlueRow"]
+[node name="Text" type="Label" parent="Root/Center/Panel/Layout/Scroll/Content/Dice/BlueRow"]
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_colors/font_color = Color(0.88, 0.93, 0.9, 1)
@@ -151,47 +163,72 @@ text = "Water: subtract its value from a die or from volatility."
 vertical_alignment = 1
 autowrap_mode = 3
 
-[node name="GreenRow" type="HBoxContainer" parent="Root/Center/Panel/Content/Dice"]
+[node name="GreenRow" type="HBoxContainer" parent="Root/Center/Panel/Layout/Scroll/Content/Dice"]
 layout_mode = 2
+mouse_filter = 1
 theme_override_constants/separation = 16
 
-[node name="Icon" type="TextureRect" parent="Root/Center/Panel/Content/Dice/GreenRow"]
+[node name="Icon" type="TextureRect" parent="Root/Center/Panel/Layout/Scroll/Content/Dice/GreenRow"]
 custom_minimum_size = Vector2(52, 52)
 layout_mode = 2
+mouse_filter = 1
 texture = ExtResource("5_green")
 expand_mode = 1
 stretch_mode = 5
 
-[node name="Text" type="Label" parent="Root/Center/Panel/Content/Dice/GreenRow"]
+[node name="Text" type="Label" parent="Root/Center/Panel/Layout/Scroll/Content/Dice/GreenRow"]
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_colors/font_color = Color(0.88, 0.93, 0.9, 1)
 theme_override_font_sizes/font_size = 26
-text = "Soil: flip a die to its opposite face."
+text = "Earth: flip a die to its opposite face (opposite faces add up to 7)."
 vertical_alignment = 1
 autowrap_mode = 3
 
-[node name="WhiteRow" type="HBoxContainer" parent="Root/Center/Panel/Content/Dice"]
+[node name="WhiteRow" type="HBoxContainer" parent="Root/Center/Panel/Layout/Scroll/Content/Dice"]
 layout_mode = 2
+mouse_filter = 1
 theme_override_constants/separation = 16
 
-[node name="Icon" type="TextureRect" parent="Root/Center/Panel/Content/Dice/WhiteRow"]
+[node name="Icon" type="TextureRect" parent="Root/Center/Panel/Layout/Scroll/Content/Dice/WhiteRow"]
 custom_minimum_size = Vector2(52, 52)
 layout_mode = 2
+mouse_filter = 1
 texture = ExtResource("6_white")
 expand_mode = 1
 stretch_mode = 5
 
-[node name="Text" type="Label" parent="Root/Center/Panel/Content/Dice/WhiteRow"]
+[node name="Text" type="Label" parent="Root/Center/Panel/Layout/Scroll/Content/Dice/WhiteRow"]
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_colors/font_color = Color(0.88, 0.93, 0.9, 1)
 theme_override_font_sizes/font_size = 26
-text = "Salt: no power, it just fills its ingredient."
+text = "Salt: it has no effect on other dice."
 vertical_alignment = 1
 autowrap_mode = 3
 
-[node name="CloseButton" type="Button" parent="Root/Center/Panel/Content"]
+[node name="Paragraph4" type="Label" parent="Root/Center/Panel/Layout/Scroll/Content"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.99, 0.95, 0.86, 1)
+theme_override_font_sizes/font_size = 27
+text = "When adding, if a die goes past 6, it starts counting again from 1, or if subtracting, if it goes below 1, it continues from 6. Each time this happens, the volatility die increases by 1."
+autowrap_mode = 3
+
+[node name="Paragraph5" type="Label" parent="Root/Center/Panel/Layout/Scroll/Content"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.99, 0.95, 0.86, 1)
+theme_override_font_sizes/font_size = 27
+text = "Before rerolling the dice, you can reserve some. Volatility increases by 1 each time you reroll and 1 more for each die reserved."
+autowrap_mode = 3
+
+[node name="Paragraph6" type="Label" parent="Root/Center/Panel/Layout/Scroll/Content"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.99, 0.95, 0.86, 1)
+theme_override_font_sizes/font_size = 27
+text = "Add all the dice to complete the potion, but watch out! If the volatility die goes past 6, the potion explodes, and if it drops below 1, it turns into soup."
+autowrap_mode = 3
+
+[node name="CloseButton" type="Button" parent="Root/Center/Panel/Layout"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(260, 64)
 layout_mode = 2

@@ -9,6 +9,8 @@ const OPERATION_SCENE := preload("res://scenes/operation.tscn")
 const VOLATILITY_SCENE := preload("res://scenes/volatility.tscn")
 const SPLASH_SCENE := preload("res://scenes/ui/splash_screen.tscn")
 const TUTORIAL_SCENE := preload("res://scenes/ui/tutorial.tscn")
+const INTRO_SCENE := preload("res://scenes/ui/intro.tscn")
+const STORE_URL := "https://ludonova.com"
 const SETTINGS_PATH := "user://settings.cfg"
 
 const ELEMENT_TYPES: Array = ["fire", "water", "salt", "grass"]
@@ -114,11 +116,17 @@ func _on_splash_finished() -> void:
 	if _tutorial_seen():
 		_finish_intro()
 	else:
-		_show_tutorial()
+		_show_story()
+
+# Introducción temática: solo la primera vez, antes de las reglas.
+func _show_story() -> void:
+	var story: NotePopup = INTRO_SCENE.instantiate()
+	add_child(story)
+	story.closed.connect(_show_tutorial)
 
 func _show_tutorial() -> void:
 	_intro_active = true
-	var tutorial: Tutorial = TUTORIAL_SCENE.instantiate()
+	var tutorial: NotePopup = TUTORIAL_SCENE.instantiate()
 	add_child(tutorial)
 	tutorial.closed.connect(_on_tutorial_closed)
 
@@ -317,7 +325,7 @@ func _show_power_hint(effect: String, placed_value: int) -> void:
 			_power_hint_title.text = "Water: subtract %d from a die" % placed_value
 			_power_hint_detail.text = "If it drops below 1, it wraps around and volatility rises"
 		"grass":
-			_power_hint_title.text = "Soil: flip a die to its opposite face"
+			_power_hint_title.text = "Earth: flip a die to its opposite face"
 			_power_hint_detail.text = "Flipping does not raise volatility"
 	_power_hint_detail.text += "\nTap a die or the volatility die"
 	_power_hint.visible = true
@@ -700,8 +708,9 @@ func _on_reroll_pressed() -> void:
 			_enter_reroll_selection(_reroll_candidates())
 		State.SELECTING_REROLL:
 			var selected := _reroll_selection.duplicate()
+			var cost := _reroll_cost()
 			_exit_reroll_selection()
-			_reroll_dice(selected)
+			_reroll_dice(selected, cost)
 
 func _reroll_candidates() -> Array[DieNode]:
 	var result: Array[DieNode] = []
@@ -716,7 +725,7 @@ func _enter_reroll_selection(candidates: Array[DieNode]) -> void:
 	_reroll_selection = candidates.duplicate()
 	_overlay.visible = true
 	_power_hint_title.text = "Choose the dice to reroll"
-	_power_hint_detail.text = "Tap a die to keep it\nRerolling raises volatility by 1"
+	_update_reroll_hint()
 	_power_hint.visible = true
 	_power_hint.reset_size()
 	_power_hint.modulate.a = 0.0
@@ -748,20 +757,29 @@ func _toggle_reroll_die(die: DieNode) -> void:
 		_reroll_selection.erase(die)
 	_set_reroll_marked(die, marked)
 	_reroll_btn.disabled = _reroll_selection.is_empty()
+	_update_reroll_hint()
+
+# Relanzar cuesta 1 de volatilidad, y 1 más por cada dado reservado.
+func _reroll_cost() -> int:
+	return 1 + _reroll_candidates().size() - _reroll_selection.size()
+
+func _update_reroll_hint() -> void:
+	_power_hint_detail.text = "Tap a die to reserve it\nVolatility rises by %d" % _reroll_cost()
+	_power_hint.reset_size()
 
 # Los marcados quedan resaltados sobre el overlay; los desmarcados, debajo (oscurecidos).
 func _set_reroll_marked(die: DieNode, marked: bool) -> void:
 	die.set_highlighted(marked)
 	die.z_index = 6 if marked else 1
 
-func _reroll_dice(dice: Array[DieNode]) -> void:
+func _reroll_dice(dice: Array[DieNode], volatility_cost: int) -> void:
 	for die: DieNode in dice:
 		die.die_value = randi_range(1, 6)
 		die.update_value_display()
-	_increase_volatility()
+	_increase_volatility(volatility_cost)
 
-func _increase_volatility() -> void:
-	_volatility.die_value += 1
+func _increase_volatility(amount: int = 1) -> void:
+	_volatility.die_value += amount
 	_volatility.update_value_display()
 	if _volatility.die_value > 6:
 		_end_game_after(Outcome.EXPLOSION, 0.35)
@@ -799,25 +817,22 @@ func _show_game_over(outcome: Outcome) -> void:
 	center.add_child(box)
 
 	var title := Label.new()
-	match outcome:
-		Outcome.EXPLOSION: title.text = "The potion is unstable!"
-		Outcome.SOUP: title.text = "Disgusting soup!"
-		Outcome.POTION_READY: title.text = "The potion is ready!"
+	if outcome == Outcome.POTION_READY:
+		title.text = "Congratulations, you've completed your first potion!"
+	else:
+		title.text = "Unfortunately, your potion has become too unstable!"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	title.custom_minimum_size = Vector2(content_w, 0)
-	title.add_theme_font_size_override("font_size", 58)
+	title.add_theme_font_size_override("font_size", 50)
 	title.add_theme_color_override("font_color", Color.WHITE)
 	box.add_child(title)
 
 	var msg := Label.new()
-	match outcome:
-		Outcome.EXPLOSION:
-			msg.text = "Clean up the lab,\nfix whatever blew up\nand start over."
-		Outcome.SOUP:
-			msg.text = "The potion has been neutralized.\nYou just brewed\na disgusting soup."
-		Outcome.POTION_READY:
-			msg.text = "Every ingredient is in place.\nThe Poison of Black Death\nis ready."
+	if outcome == Outcome.POTION_READY:
+		msg.text = "If you want to continue your learning and become a true alchemist, look for Dice Arcana in your trusted store."
+	else:
+		msg.text = "Clean up the lab,\nfix whatever blew up\nand start over."
 	msg.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	msg.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	msg.custom_minimum_size = Vector2(content_w, 0)
@@ -825,8 +840,18 @@ func _show_game_over(outcome: Outcome) -> void:
 	msg.add_theme_color_override("font_color", Color(0.85, 0.85, 0.85, 1.0))
 	box.add_child(msg)
 
+	if outcome == Outcome.POTION_READY:
+		var store_btn := _make_game_over_button("Find Dice Arcana")
+		store_btn.pressed.connect(func(): OS.shell_open(STORE_URL))
+		box.add_child(store_btn)
+
+	var btn := _make_game_over_button("Play again" if outcome == Outcome.POTION_READY else "Start over")
+	btn.pressed.connect(func(): get_tree().reload_current_scene())
+	box.add_child(btn)
+
+func _make_game_over_button(text: String) -> Button:
 	var btn := Button.new()
-	btn.text = "Play again" if outcome == Outcome.POTION_READY else "Start over"
+	btn.text = text
 	btn.add_theme_font_size_override("font_size", 38)
 	for color_name: String in ["font_color", "font_hover_color", "font_pressed_color", "font_focus_color"]:
 		btn.add_theme_color_override(color_name, NOTE_TEXT_COLOR)
@@ -838,8 +863,7 @@ func _show_game_over(outcome: Outcome) -> void:
 	btn.add_theme_stylebox_override("hover", style_hover)
 	btn.custom_minimum_size = Vector2(LevelPage.DESIGN_SIZE.x * 0.65, 76)
 	btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	btn.pressed.connect(func(): get_tree().reload_current_scene())
-	box.add_child(btn)
+	return btn
 
 func _event_pos(event: InputEvent) -> Vector2:
 	# En pantallas táctiles Godot también emite un evento de ratón emulado por

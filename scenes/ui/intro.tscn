@@ -1,0 +1,127 @@
+[gd_scene format=3 uid="uid://c8intro0001"]
+
+[ext_resource type="Script" path="res://scripts/note_popup.gd" id="1_popup"]
+[ext_resource type="Texture2D" path="res://assets/ui/note_panel.png" id="2_note"]
+
+[sub_resource type="StyleBoxTexture" id="StyleBoxTexture_panel"]
+content_margin_left = 36.0
+content_margin_top = 32.0
+content_margin_right = 36.0
+content_margin_bottom = 32.0
+texture = ExtResource("2_note")
+texture_margin_left = 12.0
+texture_margin_top = 12.0
+texture_margin_right = 12.0
+texture_margin_bottom = 12.0
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_button"]
+content_margin_left = 24.0
+content_margin_top = 6.0
+content_margin_right = 24.0
+content_margin_bottom = 6.0
+bg_color = Color(0.97, 0.93, 0.83, 1)
+corner_radius_top_left = 10
+corner_radius_top_right = 10
+corner_radius_bottom_right = 10
+corner_radius_bottom_left = 10
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_button_hover"]
+content_margin_left = 24.0
+content_margin_top = 6.0
+content_margin_right = 24.0
+content_margin_bottom = 6.0
+bg_color = Color(1, 0.98, 0.92, 1)
+corner_radius_top_left = 10
+corner_radius_top_right = 10
+corner_radius_bottom_right = 10
+corner_radius_bottom_left = 10
+
+[node name="Intro" type="CanvasLayer"]
+layer = 15
+script = ExtResource("1_popup")
+
+[node name="Root" type="Control" parent="."]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Dim" type="ColorRect" parent="Root"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0, 0, 0, 0.6)
+
+[node name="Center" type="CenterContainer" parent="Root"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="Panel" type="PanelContainer" parent="Root/Center"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(650, 0)
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleBoxTexture_panel")
+
+[node name="Layout" type="VBoxContainer" parent="Root/Center/Panel"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/separation = 18
+
+[node name="Title" type="Label" parent="Root/Center/Panel/Layout"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.99, 0.95, 0.86, 1)
+theme_override_font_sizes/font_size = 52
+text = "Introduction"
+horizontal_alignment = 1
+
+[node name="Scroll" type="ScrollContainer" parent="Root/Center/Panel/Layout"]
+unique_name_in_owner = true
+layout_mode = 2
+horizontal_scroll_mode = 0
+
+[node name="Content" type="VBoxContainer" parent="Root/Center/Panel/Layout/Scroll"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+mouse_filter = 1
+theme_override_constants/separation = 18
+
+[node name="Paragraph1" type="Label" parent="Root/Center/Panel/Layout/Scroll/Content"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.99, 0.95, 0.86, 1)
+theme_override_font_sizes/font_size = 27
+text = "You have the opportunity to be the student of one of the most prestigious alchemists in the kingdom. He's a grumpy old man who won't let a single mistake slide, but if you manage to learn from him, you could become a true alchemist."
+autowrap_mode = 3
+
+[node name="Paragraph2" type="Label" parent="Root/Center/Panel/Layout/Scroll/Content"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.99, 0.95, 0.86, 1)
+theme_override_font_sizes/font_size = 27
+text = "Potion making and the alignment of the stars are cosmically connected, so it's impossible to guarantee anything. The theory, however, is simple: throw a handful of ingredients into the cauldron and stir them until something useful comes out. Do you think you can handle it?"
+autowrap_mode = 3
+
+[node name="CloseButton" type="Button" parent="Root/Center/Panel/Layout"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(260, 64)
+layout_mode = 2
+size_flags_horizontal = 4
+theme_override_colors/font_color = Color(0.1, 0.33, 0.35, 1)
+theme_override_colors/font_hover_color = Color(0.1, 0.33, 0.35, 1)
+theme_override_colors/font_pressed_color = Color(0.1, 0.33, 0.35, 1)
+theme_override_colors/font_focus_color = Color(0.1, 0.33, 0.35, 1)
+theme_override_font_sizes/font_size = 34
+theme_override_styles/normal = SubResource("StyleBoxFlat_button")
+theme_override_styles/hover = SubResource("StyleBoxFlat_button_hover")
+theme_override_styles/pressed = SubResource("StyleBoxFlat_button")
+theme_override_styles/focus = SubResource("StyleBoxFlat_button")
+text = "I'm ready"
