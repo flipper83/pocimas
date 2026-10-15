@@ -725,7 +725,7 @@ func _enter_reroll_selection(candidates: Array[DieNode]) -> void:
 		_set_reroll_marked(die, true)
 	_reroll_btn.text = "Roll"
 	_reroll_btn.z_index = 6
-	_reroll_btn.disabled = false
+	_reroll_btn.disabled = _reroll_selection.is_empty()
 	_cancel_btn.visible = true
 
 func _exit_reroll_selection() -> void:
