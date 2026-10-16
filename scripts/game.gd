@@ -10,7 +10,7 @@ const VOLATILITY_SCENE := preload("res://scenes/volatility.tscn")
 const SPLASH_SCENE := preload("res://scenes/ui/splash_screen.tscn")
 const TUTORIAL_SCENE := preload("res://scenes/ui/tutorial.tscn")
 const INTRO_SCENE := preload("res://scenes/ui/intro.tscn")
-const STORE_URL := "https://ludonova.com"
+const STORE_URL := "https://ludonova.com/en/juego/dice-arcana/"
 const SETTINGS_PATH := "user://settings.cfg"
 
 const ELEMENT_TYPES: Array = ["fire", "water", "salt", "grass"]
